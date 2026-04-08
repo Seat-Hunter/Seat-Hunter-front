@@ -1,13 +1,10 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './SimPage.css';
+import { generateInterruptQuestion } from '../services/claudeApi';
 
 // ── 상수 ───────────────────────────────────────────────
 const FILLERS = ['어', '음', '그', '저', '뭐', '그냥', '좀', '아', '에', '이'];
 const INTERRUPT_INTERVALS = { easy: 90, medium: 50, hard: 30, brutal: 18 };
-
-const AUDIENCE_MAP  = { professor: '교수', investor: '투자자', boss: '상사', general: '청중' };
-const TYPE_MAP      = { academic: '학술 발표', pitch: 'IR 피칭', report: '사내 보고', interview: '면접' };
-const DIFF_MAP      = { easy: '부드럽게', medium: '날카롭게', hard: '매우 날카롭게', brutal: '극도로 공격적으로' };
 
 const DEMO_TEXTS = [
   '안녕하세요, 저는 오늘 저희 서비스에 대해 발표하겠습니다.',
@@ -22,7 +19,16 @@ const DEMO_TEXTS = [
   '감사합니다. 질문 있으시면 말씀해주세요.',
 ];
 
-// ── 청중 멤버 ────────────────────────────────────────
+function computeMoods(mood, count) {
+  return Array.from({ length: count }, (_, i) => {
+    if (mood === 'nodding'    && i % 3 === 0) return 'nodding';
+    if (mood === 'cold')                       return 'cold';
+    if (mood === 'interested' && i % 2 === 0) return 'interested';
+    if (mood === 'question'   && i === 0)      return 'raising';
+    return null;
+  });
+}
+
 function AudienceMember({ mood }) {
   const cls = ['audience-member', mood ? `audience-member--${mood}` : ''].join(' ');
   return (
@@ -33,56 +39,54 @@ function AudienceMember({ mood }) {
   );
 }
 
-// ── SimPage ──────────────────────────────────────────
 export default function SimPage({ simState, onStop }) {
   const { type, audience, audienceCount, difficulty, duration, interrupt: interruptOn } = simState;
 
-  // ── runtime state
-  const [elapsed, setElapsed]           = useState(0);
-  const [wpm, setWpm]                   = useState(0);
-  const [fillerCount, setFillerCount]   = useState(0);
-  const [interruptCount, setInterruptCount] = useState(0);
-  const [interruptLog, setInterruptLog] = useState([]);
-  const [transcriptWords, setTranscriptWords] = useState([]);  // [{text, isFiller}]
-  const [audienceMoods, setAudienceMoods]     = useState([]);
+  const totalSec    = duration * 60;
+  const memberCount = Math.min(audienceCount, 20);
+
+  // ── UI state
+  const [elapsed, setElapsed]                 = useState(0);
+  const [wpm, setWpm]                         = useState(0);
+  const [fillerCount, setFillerCount]         = useState(0);
+  const [interruptCount, setInterruptCount]   = useState(0);
+  const [interruptLog, setInterruptLog]       = useState([]);
+  const [transcriptWords, setTranscriptWords] = useState([]);
+  const [audienceMoods, setAudienceMoods]     = useState(() => computeMoods('neutral', memberCount));
   const [bubbleText, setBubbleText]           = useState('');
   const [bubbleVisible, setBubbleVisible]     = useState(false);
   const [listenLabel, setListenLabel]         = useState('마이크 듣는 중...');
-  const [isLoading, setIsLoading]             = useState(false);
 
-  // ── refs (변경돼도 리렌더 불필요한 값)
-  const startTimeRef        = useRef(Date.now());
-  const transcriptRef       = useRef('');
-  const wordCountRef        = useRef(0);
-  const fillerCountRef      = useRef(0);
-  const wpmHistoryRef       = useRef([]);
-  const interruptLogRef     = useRef([]);
-  const interruptPendingRef = useRef(false);
-  const interruptCooldownRef= useRef(false);
-  const recognitionRef      = useRef(null);
-  const demoTimerRef        = useRef(null);
-  const demoIdxRef          = useRef(0);
-  const timerIntervalRef    = useRef(null);
-  const transcriptBoxRef    = useRef(null);
-  const interruptLogBoxRef  = useRef(null);
-  const stoppedRef          = useRef(false);
+  // ── 런타임 refs
+  const startTimeRef         = useRef(Date.now());
+  const transcriptRef        = useRef('');
+  const wordCountRef         = useRef(0);
+  const fillerCountRef       = useRef(0);
+  const wpmHistoryRef        = useRef([]);
+  const interruptLogRef      = useRef([]);
+  const interruptPendingRef  = useRef(false);
+  const interruptCooldownRef = useRef(false);
+  const recognitionRef       = useRef(null);
+  const demoTimerRef         = useRef(null);
+  const demoIdxRef           = useRef(0);
+  const timerIntervalRef     = useRef(null);
+  const transcriptBoxRef     = useRef(null);
+  const interruptLogBoxRef   = useRef(null);
+  const stoppedRef           = useRef(false);
 
-  const totalSec = duration * 60;
-  const memberCount = Math.min(audienceCount, 20);
-
-  // ── 청중 무드 계산
-  function computeMoods(mood, count) {
-    return Array.from({ length: count }, (_, i) => {
-      if (mood === 'nodding'   && i % 3 === 0) return 'nodding';
-      if (mood === 'cold')                      return 'cold';
-      if (mood === 'interested'&& i % 2 === 0) return 'interested';
-      if (mood === 'question'  && i === 0)      return 'raising';
-      return null;
-    });
-  }
+  // ── prop refs (매 렌더마다 바로 할당)
+  const onStopRef      = useRef(onStop);
+  const interruptOnRef = useRef(interruptOn);
+  const audienceRef    = useRef(audience);
+  const typeRef        = useRef(type);
+  const difficultyRef  = useRef(difficulty);
+  const memberCountRef = useRef(memberCount);
+  const totalSecRef    = useRef(totalSec);
+  onStopRef.current      = onStop;
+  interruptOnRef.current = interruptOn;
 
   // ── 텍스트 처리
-  const processNewText = useCallback((text) => {
+  function processNewText(text) {
     transcriptRef.current += text;
     const words = text.trim().split(/\s+/);
     wordCountRef.current += words.length;
@@ -92,7 +96,6 @@ export default function SimPage({ simState, onStop }) {
       if (FILLERS.includes(clean)) fillerCountRef.current++;
     });
 
-    // 최근 60단어만 표시
     const allWords = transcriptRef.current.split(/\s+/).slice(-60);
     const parsed = allWords.map(w => {
       const clean = w.replace(/[^가-힣a-z]/gi, '');
@@ -101,69 +104,80 @@ export default function SimPage({ simState, onStop }) {
     setTranscriptWords(parsed);
     setFillerCount(fillerCountRef.current);
 
-    // WPM
     const elapsedMin = (Date.now() - startTimeRef.current) / 60000;
     const currentWpm = elapsedMin > 0 ? Math.round(wordCountRef.current / elapsedMin) : 0;
     wpmHistoryRef.current.push(currentWpm);
     setWpm(currentWpm);
 
-    // 청중 반응
+    const count = memberCountRef.current;
     if (currentWpm > 80 && currentWpm < 160 && fillerCountRef.current < 5) {
-      setAudienceMoods(computeMoods('nodding', memberCount));
+      setAudienceMoods(computeMoods('nodding', count));
     } else if (currentWpm > 160 || fillerCountRef.current > 8) {
-      setAudienceMoods(computeMoods('cold', memberCount));
+      setAudienceMoods(computeMoods('cold', count));
     } else {
-      setAudienceMoods(computeMoods('interested', memberCount));
+      setAudienceMoods(computeMoods('interested', count));
     }
-  }, [memberCount]);
+  }
 
-  // ── 인터럽트 생성
-  const generateQuestion = useCallback(async () => {
-    const context = transcriptRef.current.slice(-400);
-    const prompt = `당신은 ${AUDIENCE_MAP[audience]}입니다. 지금 ${TYPE_MAP[type]} 중입니다.
-발표자의 최근 발화: "${context}"
+  // ── 종료 (ref로 감싸서 interval 안에서도 최신 버전 참조)
+  const stopSimRef = useRef(null);
+  stopSimRef.current = function stopSim() {
+    if (stoppedRef.current) return;
+    stoppedRef.current = true;
 
-${DIFF_MAP[difficulty]} 한 문장으로 날카로운 질문을 던지세요. 발표 내용에 근거하고, 발표자가 당황할 만한 질문이어야 합니다.
-질문만 출력하고 다른 말은 하지 마세요.`;
+    interruptPendingRef.current  = false;
+    interruptCooldownRef.current = false;
+    clearInterval(timerIntervalRef.current);
+    if (recognitionRef.current) recognitionRef.current.stop();
+    if (demoTimerRef.current)   clearInterval(demoTimerRef.current);
 
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
-      const data = await res.json();
-      return data.content?.[0]?.text?.trim() || null;
-    } catch {
-      return null;
-    }
-  }, [audience, type, difficulty]);
+    onStopRef.current({
+      elapsed:      Math.floor((Date.now() - startTimeRef.current) / 1000),
+      transcript:   transcriptRef.current,
+      wordCount:    wordCountRef.current,
+      fillerCount:  fillerCountRef.current,
+      wpmHistory:   wpmHistoryRef.current,
+      interruptLog: interruptLogRef.current,
+    });
+  };
 
-  const maybeInterrupt = useCallback(async () => {
-    if (!interruptOn) return;
+  // ── 인터럽트 (ref로 감싸서 항상 최신 값 참조)
+  const maybeInterruptRef = useRef(null);
+  maybeInterruptRef.current = async function maybeInterrupt() {
+    if (!interruptOnRef.current) return;
     if (interruptCooldownRef.current || interruptPendingRef.current) return;
     if (transcriptRef.current.length < 80) return;
+    if (stoppedRef.current) return;
 
-    interruptPendingRef.current = true;
+    interruptPendingRef.current  = true;
     interruptCooldownRef.current = true;
 
-    const question = await generateQuestion();
+    let question = null;
+    try {
+      question = await generateInterruptQuestion({
+        audience:   audienceRef.current,
+        type:       typeRef.current,
+        difficulty: difficultyRef.current,
+        context:    transcriptRef.current.slice(-400),
+      });
+    } catch {
+      interruptPendingRef.current  = false;
+      interruptCooldownRef.current = false;
+      return;
+    }
+
     if (!question || stoppedRef.current) {
-      interruptPendingRef.current = false;
+      interruptPendingRef.current  = false;
+      interruptCooldownRef.current = false;
       return;
     }
 
     interruptLogRef.current.push(question);
     setInterruptCount(c => c + 1);
     setInterruptLog([...interruptLogRef.current]);
-
     setBubbleText(question);
     setBubbleVisible(true);
-    setAudienceMoods(computeMoods('question', memberCount));
+    setAudienceMoods(computeMoods('question', memberCountRef.current));
 
     setTimeout(() => {
       setBubbleVisible(false);
@@ -172,44 +186,33 @@ ${DIFF_MAP[difficulty]} 한 문장으로 날카로운 질문을 던지세요. �
 
     setTimeout(() => {
       interruptCooldownRef.current = false;
-    }, INTERRUPT_INTERVALS[difficulty] * 1000);
-  }, [interruptOn, difficulty, generateQuestion, memberCount]);
+    }, INTERRUPT_INTERVALS[difficultyRef.current] * 1000);
+  };
 
-  // ── 종료
-  const stopSim = useCallback(() => {
-    if (stoppedRef.current) return;
-    stoppedRef.current = true;
+  // ── 데모 모드
+  function startDemo() {
+    setListenLabel('데모 모드 (마이크 없음)');
+    demoTimerRef.current = setInterval(() => {
+      if (demoIdxRef.current < DEMO_TEXTS.length && !stoppedRef.current) {
+        processNewText(DEMO_TEXTS[demoIdxRef.current++]);
+      }
+    }, 4000);
+  }
 
-    clearInterval(timerIntervalRef.current);
-    if (recognitionRef.current) recognitionRef.current.stop();
-    if (demoTimerRef.current) clearInterval(demoTimerRef.current);
-
-    const finalElapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-    setIsLoading(true);
-
-    onStop({
-      elapsed:      finalElapsed,
-      transcript:   transcriptRef.current,
-      wordCount:    wordCountRef.current,
-      fillerCount:  fillerCountRef.current,
-      wpmHistory:   wpmHistoryRef.current,
-      interruptLog: interruptLogRef.current,
-    });
-  }, [onStop]);
-
-  // ── 마운트 시 타이머 + 음성인식 시작
+  // ── 마운트 시 1회 실행
   useEffect(() => {
-    setAudienceMoods(computeMoods('neutral', memberCount));
-
+    startTimeRef.current = Date.now();
     // 타이머
     timerIntervalRef.current = setInterval(() => {
       const elapsedSec = Math.floor((Date.now() - startTimeRef.current) / 1000);
       setElapsed(elapsedSec);
-      if (elapsedSec >= totalSec) {
-        stopSim();
+      if (elapsedSec >= totalSecRef.current) {
+        stopSimRef.current();
         return;
       }
-      if (elapsedSec % 5 === 0) maybeInterrupt();
+      if (elapsedSec > 0 && elapsedSec % 5 === 0) {
+        maybeInterruptRef.current();
+      }
     }, 1000);
 
     // 음성 인식
@@ -220,7 +223,6 @@ ${DIFF_MAP[difficulty]} 한 문장으로 날카로운 질문을 던지세요. �
       r.continuous = true;
       r.interimResults = true;
       recognitionRef.current = r;
-
       r.onresult = (e) => {
         let final = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -228,7 +230,6 @@ ${DIFF_MAP[difficulty]} 한 문장으로 날카로운 질문을 던지세요. �
         }
         if (final) processNewText(final);
       };
-
       r.onerror = () => startDemo();
       r.onend   = () => { if (!stoppedRef.current) r.start(); };
       r.start();
@@ -240,150 +241,114 @@ ${DIFF_MAP[difficulty]} 한 문장으로 날카로운 질문을 던지세요. �
       stoppedRef.current = true;
       clearInterval(timerIntervalRef.current);
       if (recognitionRef.current) recognitionRef.current.stop();
-      if (demoTimerRef.current) clearInterval(demoTimerRef.current);
+      if (demoTimerRef.current)   clearInterval(demoTimerRef.current);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  function startDemo() {
-    setListenLabel('데모 모드 (마이크 없음)');
-    demoTimerRef.current = setInterval(() => {
-      if (demoIdxRef.current < DEMO_TEXTS.length && !stoppedRef.current) {
-        processNewText(DEMO_TEXTS[demoIdxRef.current++]);
-      }
-    }, 4000);
-  }
-
-  // ── transcript 스크롤
+  // ── 스크롤
   useEffect(() => {
-    if (transcriptBoxRef.current) {
+    if (transcriptBoxRef.current)
       transcriptBoxRef.current.scrollTop = transcriptBoxRef.current.scrollHeight;
-    }
   }, [transcriptWords]);
 
-  // ── interrupt log 스크롤
   useEffect(() => {
-    if (interruptLogBoxRef.current) {
+    if (interruptLogBoxRef.current)
       interruptLogBoxRef.current.scrollTop = interruptLogBoxRef.current.scrollHeight;
-    }
   }, [interruptLog]);
 
   // ── 파생 값
-  const remaining   = totalSec - elapsed;
-  const timerPct    = (remaining / totalSec) * 100;
-  const isUrgent    = remaining < 30;
-  const mm          = String(Math.floor(elapsed / 60)).padStart(1, '0');
-  const ss          = String(elapsed % 60).padStart(2, '0');
-  const wpmPct      = Math.min(wpm / 200, 1) * 100;
-  const wpmColor    = wpm < 80 || wpm > 160 ? 'stat-val--red' : 'stat-val--green';
-  const cols        = Math.min(Math.ceil(Math.sqrt(memberCount)), 5);
+  const remaining = totalSec - elapsed;
+  const timerPct  = Math.max(0, (remaining / totalSec) * 100);
+  const isUrgent  = remaining < 30;
+  const mm        = String(Math.floor(elapsed / 60));
+  const ss        = String(elapsed % 60).padStart(2, '0');
+  const wpmPct    = Math.min(wpm / 200, 1) * 100;
+  const wpmColor  = wpm < 80 || wpm > 160 ? 'stat-val--red' : 'stat-val--green';
+  const cols      = Math.min(Math.ceil(Math.sqrt(memberCount)), 5);
 
   return (
-    <>
-      {isLoading && (
-        <div className="loading-overlay">
-          <div className="spinner" />
-          <div className="loading-overlay__msg">AI 종합 피드백 생성 중...</div>
+    <div className="sim-page">
+      {/* ── 스테이지 ── */}
+      <div className="sim-stage">
+        <div className={`interrupt-bubble${bubbleVisible ? ' interrupt-bubble--show' : ''}`}>
+          <div className="interrupt-bubble__from">청중 질문</div>
+          {bubbleText}
         </div>
-      )}
 
-      <div className="sim-page">
-        {/* ── 스테이지 ── */}
-        <div className="sim-stage">
-          {/* 인터럽트 말풍선 */}
-          <div className={`interrupt-bubble${bubbleVisible ? ' interrupt-bubble--show' : ''}`}>
-            <div className="interrupt-bubble__from">청중 질문</div>
-            {bubbleText}
+        <div className="audience" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+          {Array.from({ length: memberCount }, (_, i) => (
+            <AudienceMember key={i} mood={audienceMoods[i] ?? null} />
+          ))}
+        </div>
+      </div>
+
+      {/* ── HUD ── */}
+      <div className="hud">
+        <div className="hud__title">// 실시간 분석</div>
+
+        <div className="listening-indicator">
+          <div className="dot dot--active" />
+          <span>{listenLabel}</span>
+        </div>
+
+        <div>
+          <div className="timer-bar">
+            <div
+              className={`timer-bar__fill${isUrgent ? ' timer-bar__fill--urgent' : ''}`}
+              style={{ width: `${timerPct}%` }}
+            />
           </div>
+          <div className="timer-meta">
+            <span className="timer-meta__text">경과</span>
+            <span className="timer-meta__text">{mm}:{ss}</span>
+          </div>
+        </div>
 
-          {/* 청중 그리드 */}
-          <div
-            className="audience"
-            style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}
-          >
-            {Array.from({ length: memberCount }, (_, i) => (
-              <AudienceMember key={i} mood={audienceMoods[i] || null} />
+        <div className="stat-block">
+          <div className={`stat-val ${wpmColor}`}>{wpm}</div>
+          <div className="stat-label">WPM // 말하기 속도</div>
+          <div className="wpm-bar-wrap">
+            <div className="wpm-bar" style={{ width: `${wpmPct}%` }} />
+          </div>
+        </div>
+
+        <div className="stat-block__grid">
+          <div className="stat-block">
+            <div className="stat-val stat-val--red">{fillerCount}</div>
+            <div className="stat-label">필러 단어</div>
+          </div>
+          <div className="stat-block">
+            <div className="stat-val stat-val--blue">{interruptCount}</div>
+            <div className="stat-label">인터럽트</div>
+          </div>
+        </div>
+
+        <div>
+          <div className="hud__title">// 발화 텍스트</div>
+          <div className="transcript-box" ref={transcriptBoxRef}>
+            {transcriptWords.length === 0 ? (
+              <span>대기 중...</span>
+            ) : (
+              transcriptWords.map((w, i) => (
+                <span key={i} className={w.isFiller ? 'transcript-box__filler' : 'transcript-box__word'}>
+                  {w.text}{' '}
+                </span>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div>
+          <div className="hud__title" style={{ marginBottom: '8px' }}>// 인터럽트 기록</div>
+          <div className="interrupt-log" ref={interruptLogBoxRef}>
+            {interruptLog.map((q, i) => (
+              <div key={i} className="log-item">Q{i + 1}: {q}</div>
             ))}
           </div>
         </div>
 
-        {/* ── HUD ── */}
-        <div className="hud">
-          <div className="hud__title">// 실시간 분석</div>
-
-          {/* 마이크 상태 */}
-          <div className="listening-indicator">
-            <div className="dot dot--active" />
-            <span>{listenLabel}</span>
-          </div>
-
-          {/* 타이머 */}
-          <div>
-            <div className="timer-bar">
-              <div
-                className={`timer-bar__fill${isUrgent ? ' timer-bar__fill--urgent' : ''}`}
-                style={{ width: `${timerPct}%` }}
-              />
-            </div>
-            <div className="timer-meta">
-              <span className="timer-meta__text">경과</span>
-              <span className="timer-meta__text">{mm}:{ss}</span>
-            </div>
-          </div>
-
-          {/* WPM */}
-          <div className="stat-block">
-            <div className={`stat-val ${wpmColor}`}>{wpm}</div>
-            <div className="stat-label">WPM // 말하기 속도</div>
-            <div className="wpm-bar-wrap">
-              <div className="wpm-bar" style={{ width: `${wpmPct}%` }} />
-            </div>
-          </div>
-
-          {/* 필러 / 인터럽트 */}
-          <div className="stat-block__grid">
-            <div className="stat-block">
-              <div className="stat-val stat-val--red">{fillerCount}</div>
-              <div className="stat-label">필러 단어</div>
-            </div>
-            <div className="stat-block">
-              <div className="stat-val stat-val--blue">{interruptCount}</div>
-              <div className="stat-label">인터럽트</div>
-            </div>
-          </div>
-
-          {/* 발화 텍스트 */}
-          <div>
-            <div className="hud__title">// 발화 텍스트</div>
-            <div className="transcript-box" ref={transcriptBoxRef}>
-              {transcriptWords.length === 0 ? (
-                <span>대기 중...</span>
-              ) : (
-                transcriptWords.map((w, i) => (
-                  <span
-                    key={i}
-                    className={w.isFiller ? 'transcript-box__filler' : 'transcript-box__word'}
-                  >
-                    {w.text}{' '}
-                  </span>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* 인터럽트 기록 */}
-          <div>
-            <div className="hud__title" style={{ marginBottom: '8px' }}>// 인터럽트 기록</div>
-            <div className="interrupt-log" ref={interruptLogBoxRef}>
-              {interruptLog.map((q, i) => (
-                <div key={i} className="log-item">Q{i + 1}: {q}</div>
-              ))}
-            </div>
-          </div>
-
-          <button className="btn-stop" onClick={stopSim}>발표 종료</button>
-        </div>
+        <button className="btn-stop" onClick={() => stopSimRef.current()}>발표 종료</button>
       </div>
-    </>
+    </div>
   );
 }

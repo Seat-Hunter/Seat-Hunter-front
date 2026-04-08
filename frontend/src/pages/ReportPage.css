@@ -1,0 +1,166 @@
+/* ── ReportPage.css ── */
+
+.report-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 60px 40px;
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+  gap: 32px;
+}
+
+/* ── Header ── */
+.report-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 24px;
+}
+
+.report-title {
+  font-family: var(--display);
+  font-size: 48px;
+  letter-spacing: 3px;
+  color: var(--text);
+  line-height: 1;
+}
+
+.report-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+.score-badge {
+  font-family: var(--display);
+  font-size: 72px;
+  letter-spacing: 2px;
+  line-height: 1;
+  text-align: right;
+}
+
+.score-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--muted);
+  text-align: right;
+}
+
+/* ── Metrics row ── */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 20px;
+  border-radius: 4px;
+}
+
+.metric-num {
+  font-family: var(--display);
+  font-size: 36px;
+  letter-spacing: 2px;
+  line-height: 1;
+}
+
+.metric-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── Feedback section ── */
+.feedback-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 28px;
+}
+
+.feedback-section__title {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 3px;
+  color: var(--muted);
+  text-transform: uppercase;
+  margin-bottom: 16px;
+}
+
+.feedback-text {
+  font-size: 14px;
+  line-height: 1.8;
+  color: #ccc;
+  white-space: pre-wrap;
+}
+
+/* loading shimmer */
+.feedback-text--loading {
+  color: var(--muted);
+  animation: blink 1.2s ease-in-out infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+/* ── QA list ── */
+.qa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.qa-item {
+  background: var(--surface2);
+  border-left: 3px solid var(--accent2);
+  padding: 14px 16px;
+  border-radius: 0 4px 4px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.qa-item__label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--accent2);
+  margin-bottom: 6px;
+}
+
+.qa-empty {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── Restart button ── */
+.btn-restart {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 14px 32px;
+  font-family: var(--display);
+  font-size: 20px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+  align-self: flex-start;
+}
+
+.btn-restart:hover {
+  background: var(--accent);
+  color: #000;
+}
