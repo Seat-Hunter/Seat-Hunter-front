@@ -1,12 +1,9 @@
 import { useState } from 'react';
 import SetupPage from './pages/SetupPage';
-// 나중에 추가할 페이지들 (구현 시 주석 해제)
-// import SimPage    from './pages/SimPage';
-// import ReportPage from './pages/ReportPage';
+import SimPage   from './pages/SimPage';
+// import ReportPage from './pages/ReportPage';  ← 다음 단계에서 해제
 
-// 전역 simState 초기값 — Sim → Report 간 공유
 const INITIAL_SIM_STATE = {
-  // 설정값 (Setup에서 넘어옴)
   type:          'academic',
   audience:      'professor',
   audienceCount: 15,
@@ -14,8 +11,7 @@ const INITIAL_SIM_STATE = {
   duration:      3,
   interrupt:     true,
   script:        '',
-  // 런타임 (Sim 중 갱신)
-  startTime:     null,
+  // runtime (SimPage → ReportPage 공유)
   elapsed:       0,
   transcript:    '',
   wordCount:     0,
@@ -25,25 +21,22 @@ const INITIAL_SIM_STATE = {
 };
 
 export default function App() {
-  // 현재 화면: 'setup' | 'sim' | 'report'
-  const [page, setPage] = useState('setup');
-
-  // Sim ↔ Report 간 공유 상태
+  const [page, setPage]         = useState('setup');
   const [simState, setSimState] = useState(INITIAL_SIM_STATE);
 
-  // Setup → Sim 전환
+  // Setup → Sim
   function handleStart(config) {
     setSimState({ ...INITIAL_SIM_STATE, ...config });
     setPage('sim');
   }
 
-  // Sim → Report 전환
+  // Sim → Report
   function handleStop(runtimeData) {
     setSimState(prev => ({ ...prev, ...runtimeData }));
     setPage('report');
   }
 
-  // Report → Setup 재시작
+  // Report → Setup
   function handleRestart() {
     setSimState(INITIAL_SIM_STATE);
     setPage('setup');
@@ -55,11 +48,11 @@ export default function App() {
         <SetupPage onStart={handleStart} />
       )}
 
-      {/* 구현 후 주석 해제 */}
-      {/* {page === 'sim' && (
+      {page === 'sim' && (
         <SimPage simState={simState} onStop={handleStop} />
-      )} */}
+      )}
 
+      {/* 다음 단계에서 주석 해제 */}
       {/* {page === 'report' && (
         <ReportPage simState={simState} onRestart={handleRestart} />
       )} */}
