@@ -1,121 +1,68 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './styles/App.css'
+import { useState } from 'react';
+import SetupPage from './pages/SetupPage';
+// 나중에 추가할 페이지들 (구현 시 주석 해제)
+// import SimPage    from './pages/SimPage';
+// import ReportPage from './pages/ReportPage';
 
-function App() {
-  const [count, setCount] = useState(0)
+// 전역 simState 초기값 — Sim → Report 간 공유
+const INITIAL_SIM_STATE = {
+  // 설정값 (Setup에서 넘어옴)
+  type:          'academic',
+  audience:      'professor',
+  audienceCount: 15,
+  difficulty:    'medium',
+  duration:      3,
+  interrupt:     true,
+  script:        '',
+  // 런타임 (Sim 중 갱신)
+  startTime:     null,
+  elapsed:       0,
+  transcript:    '',
+  wordCount:     0,
+  fillerCount:   0,
+  wpmHistory:    [],
+  interruptLog:  [],
+};
+
+export default function App() {
+  // 현재 화면: 'setup' | 'sim' | 'report'
+  const [page, setPage] = useState('setup');
+
+  // Sim ↔ Report 간 공유 상태
+  const [simState, setSimState] = useState(INITIAL_SIM_STATE);
+
+  // Setup → Sim 전환
+  function handleStart(config) {
+    setSimState({ ...INITIAL_SIM_STATE, ...config });
+    setPage('sim');
+  }
+
+  // Sim → Report 전환
+  function handleStop(runtimeData) {
+    setSimState(prev => ({ ...prev, ...runtimeData }));
+    setPage('report');
+  }
+
+  // Report → Setup 재시작
+  function handleRestart() {
+    setSimState(INITIAL_SIM_STATE);
+    setPage('setup');
+  }
 
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+      {page === 'setup' && (
+        <SetupPage onStart={handleStart} />
+      )}
 
-      <div className="ticks"></div>
+      {/* 구현 후 주석 해제 */}
+      {/* {page === 'sim' && (
+        <SimPage simState={simState} onStop={handleStop} />
+      )} */}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+      {/* {page === 'report' && (
+        <ReportPage simState={simState} onRestart={handleRestart} />
+      )} */}
     </>
-  )
+  );
 }
-
-export default App
