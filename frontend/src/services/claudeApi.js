@@ -67,7 +67,7 @@ export async function getReport(sessionId = _sessionId) {
 
 // ── WebSocket ─────────────────────────────────────────────
 
-// SimPage에서 세션 시작 후 호출
+// App.jsx에서 세션 시작 후 호출 (handlers 방식)
 // handlers: { onMetrics, onInterrupt, onTTSAudio, onAudienceReaction, onSessionState }
 export function connectWS(sessionId = _sessionId, handlers = {}) {
   if (_ws) _ws.close();
@@ -105,6 +105,23 @@ export function connectWS(sessionId = _sessionId, handlers = {}) {
   return _ws;
 }
 
+// SimPage에서 사용하는 단일 콜백 방식 WebSocket 연결
+export function connectSessionWS(sessionId, onMessage) {
+  const ws = new WebSocket(`${WS_BASE}/ws/sessions/${sessionId}`);
+  ws.onopen    = () => console.log('[WS] connected');
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      onMessage(msg);
+    } catch {
+      console.error('[WS] parse error', e.data);
+    }
+  };
+  ws.onclose = () => console.log('[WS] disconnected');
+  ws.onerror = (e) => console.error('[WS] error', e);
+  return ws;
+}
+
 export function disconnectWS() {
   _ws?.close();
   _ws = null;
@@ -125,9 +142,9 @@ export function sendAudioChunk(audioBase64) {
 export function sendTranscript(text, isFinal = false) {
   if (_ws?.readyState === WebSocket.OPEN) {
     _ws.send(JSON.stringify({
-      type:        isFinal ? 'partial_transcript' : 'partial_transcript',
+      type:         'partial_transcript',
       text,
-      is_final:    isFinal,
+      is_final:     isFinal,
       timestamp_ms: Date.now(),
     }));
   }
@@ -136,26 +153,19 @@ export function sendTranscript(text, isFinal = false) {
 // ── SimPage / ReportPage 호환 함수 ────────────────────────
 
 // SimPage에서 타이머마다 호출 — 백엔드가 큐에 넣은 질문을 꺼내거나 null 반환
-// payload: { audience, type, difficulty, context }
 export async function generateInterruptQuestion({ audience, type, difficulty, context }) {
-  // 백엔드 WebSocket에서 수신된 질문이 있으면 반환
   if (_interruptQueue.length > 0) {
     return _interruptQueue.shift();
   }
-
-  // WebSocket 미연결 시 — 현재 transcript를 백엔드에 보내고 null 반환
-  // (백엔드가 분석 후 다음 호출 타이밍에 큐에 질문을 넣어줌)
   sendTranscript(context, true);
   return null;
 }
 
 // ReportPage에서 마운트 시 호출 — 백엔드 리포트의 AI 피드백 텍스트 반환
-// payload: { type, audience, difficulty, elapsed, avgWpm, fillerCount, interruptLog, transcript, score }
 export async function generateFeedback({ type, audience, difficulty, elapsed, avgWpm, fillerCount, interruptLog, transcript, score }) {
   if (!_sessionId) return null;
   try {
     const report = await getReport();
-    // 백엔드 리포트에서 AI 피드백 필드 추출 (필드명은 백엔드 스키마에 따라 조정)
     return report?.ai_feedback
       ?? report?.feedback
       ?? report?.summary

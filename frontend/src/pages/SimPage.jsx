@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import './SimPage.css';
-import { generateInterruptQuestion } from '../services/claudeApi';
+import { generateInterruptQuestion, startSession, endSession, connectSessionWS } from '../services/claudeApi';
 
 // ── 상수 ───────────────────────────────────────────────
 const FILLERS = ['어', '음', '그', '저', '뭐', '그냥', '좀', '아', '에', '이'];
@@ -40,7 +40,7 @@ function AudienceMember({ mood }) {
 }
 
 export default function SimPage({ simState, onStop }) {
-  const { type, audience, audienceCount, difficulty, duration, interrupt: interruptOn } = simState;
+  const { type, audience, audienceCount, difficulty, duration, interrupt: interruptOn, sessionId } = simState;
 
   const totalSec    = duration * 60;
   const memberCount = Math.min(audienceCount, 20);
@@ -57,7 +57,6 @@ export default function SimPage({ simState, onStop }) {
   const [bubbleText, setBubbleText]           = useState('');
   const [bubbleVisible, setBubbleVisible]     = useState(false);
   const [listenLabel, setListenLabel]         = useState('마이크 듣는 중...');
-
   // ── 런타임 refs
   const startTimeRef         = useRef(Date.now());
   const transcriptRef        = useRef('');
@@ -74,8 +73,9 @@ export default function SimPage({ simState, onStop }) {
   const transcriptBoxRef     = useRef(null);
   const interruptLogBoxRef   = useRef(null);
   const stoppedRef           = useRef(false);
+  const wsRef                = useRef(null);
 
-  // ── prop refs (매 렌더마다 바로 할당)
+  // ── prop refs
   const onStopRef      = useRef(onStop);
   const interruptOnRef = useRef(interruptOn);
   const audienceRef    = useRef(audience);
@@ -83,6 +83,7 @@ export default function SimPage({ simState, onStop }) {
   const difficultyRef  = useRef(difficulty);
   const memberCountRef = useRef(memberCount);
   const totalSecRef    = useRef(totalSec);
+  const sessionIdRef   = useRef(sessionId);
   onStopRef.current      = onStop;
   interruptOnRef.current = interruptOn;
 
@@ -120,7 +121,7 @@ export default function SimPage({ simState, onStop }) {
     }
   }
 
-  // ── 종료 (ref로 감싸서 interval 안에서도 최신 버전 참조)
+  // ── 종료
   const stopSimRef = useRef(null);
   stopSimRef.current = function stopSim() {
     if (stoppedRef.current) return;
@@ -131,6 +132,11 @@ export default function SimPage({ simState, onStop }) {
     clearInterval(timerIntervalRef.current);
     if (recognitionRef.current) recognitionRef.current.stop();
     if (demoTimerRef.current)   clearInterval(demoTimerRef.current);
+    if (wsRef.current)          wsRef.current.close();
+
+    if (sessionIdRef.current) {
+      endSession(sessionIdRef.current).catch(console.error);
+    }
 
     onStopRef.current({
       elapsed:      Math.floor((Date.now() - startTimeRef.current) / 1000),
@@ -142,7 +148,7 @@ export default function SimPage({ simState, onStop }) {
     });
   };
 
-  // ── 인터럽트 (ref로 감싸서 항상 최신 값 참조)
+  // ── 인터럽트
   const maybeInterruptRef = useRef(null);
   maybeInterruptRef.current = async function maybeInterrupt() {
     if (!interruptOnRef.current) return;
@@ -200,10 +206,41 @@ export default function SimPage({ simState, onStop }) {
     }, 4000);
   }
 
-  // ── 마운트 시 1회 실행
+  // ── WebSocket 연결 (백엔드 세션 시작)
+  useEffect(() => {
+    if (!sessionId) return;
+
+    startSession(sessionId)
+      .then(() => {
+        const ws = connectSessionWS(sessionId, (msg) => {
+          if (msg.type === 'final_transcript') {
+            // 화면 표시는 Web Speech가 담당, 여기선 생략
+            // B 담당 분석용으로만 사용
+          }
+          if (msg.type === 'live_metrics') {
+            setWpm(msg.wpm);
+            setFillerCount(msg.filler_count);
+          }
+          if (msg.type === 'session_state') {
+            console.log('[세션 상태]', msg.state);
+          }
+          if (msg.type === 'stop_tts') {
+            console.log('[Barge-in] TTS 중단');
+          }
+        });
+        wsRef.current = ws;
+      })
+      .catch(console.error);
+
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── 마운트 시 1회 실행 (타이머 + 음성인식)
   useEffect(() => {
     startTimeRef.current = Date.now();
-    // 타이머
+
     timerIntervalRef.current = setInterval(() => {
       const elapsedSec = Math.floor((Date.now() - startTimeRef.current) / 1000);
       setElapsed(elapsedSec);
@@ -216,7 +253,6 @@ export default function SimPage({ simState, onStop }) {
       }
     }, 1000);
 
-    // 음성 인식
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SR) {
       const r = new SR();
