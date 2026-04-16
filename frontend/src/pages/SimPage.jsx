@@ -21,10 +21,10 @@ const DEMO_TEXTS = [
 
 function computeMoods(mood, count) {
   return Array.from({ length: count }, (_, i) => {
-    if (mood === 'nodding'    && i % 3 === 0) return 'nodding';
-    if (mood === 'cold')                       return 'cold';
-    if (mood === 'interested' && i % 2 === 0) return 'interested';
-    if (mood === 'question'   && i === 0)      return 'raising';
+    if (mood === 'nodding')    return 'nodding';
+    if (mood === 'cold')       return 'cold';
+    if (mood === 'interested') return 'interested';
+    if (mood === 'question')   return i % 3 === 0 ? 'raising' : null;
     return null;
   });
 }
@@ -57,6 +57,7 @@ export default function SimPage({ simState, onStop }) {
   const [bubbleText, setBubbleText]           = useState('');
   const [bubbleVisible, setBubbleVisible]     = useState(false);
   const [listenLabel, setListenLabel]         = useState('마이크 듣는 중...');
+  const [liveFeedback, setLiveFeedback]       = useState(null);
   // ── 런타임 refs
   const startTimeRef         = useRef(Date.now());
   const transcriptRef        = useRef('');
@@ -74,6 +75,7 @@ export default function SimPage({ simState, onStop }) {
   const interruptLogBoxRef   = useRef(null);
   const stoppedRef           = useRef(false);
   const wsRef                = useRef(null);
+  const audioRef             = useRef(null);
 
   // ── prop refs
   const onStopRef      = useRef(onStop);
@@ -90,6 +92,17 @@ export default function SimPage({ simState, onStop }) {
   // ── 텍스트 처리
   function processNewText(text) {
     transcriptRef.current += text;
+
+    // 백엔드로 최종 전사 전송 → 인터럽트 트리거
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'partial_transcript',
+        text,
+        is_final: true,
+        timestamp_ms: Date.now(),
+      }));
+    }
+
     const words = text.trim().split(/\s+/);
     wordCountRef.current += words.length;
 
@@ -111,13 +124,16 @@ export default function SimPage({ simState, onStop }) {
     wpmHistoryRef.current.push(currentWpm);
     setWpm(currentWpm);
 
-    const count = memberCountRef.current;
-    if (currentWpm > 80 && currentWpm < 160 && fillerCountRef.current < 5) {
-      setAudienceMoods(computeMoods('nodding', count));
-    } else if (currentWpm > 160 || fillerCountRef.current > 8) {
-      setAudienceMoods(computeMoods('cold', count));
-    } else {
-      setAudienceMoods(computeMoods('interested', count));
+    // 백엔드 WS가 없을 때만 로컬 로직으로 청중 반응 업데이트
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      const count = memberCountRef.current;
+      if (currentWpm > 80 && currentWpm < 160 && fillerCountRef.current < 5) {
+        setAudienceMoods(computeMoods('nodding', count));
+      } else if (currentWpm > 160 || fillerCountRef.current > 8) {
+        setAudienceMoods(computeMoods('cold', count));
+      } else {
+        setAudienceMoods(computeMoods('interested', count));
+      }
     }
   }
 
@@ -133,6 +149,7 @@ export default function SimPage({ simState, onStop }) {
     if (recognitionRef.current) recognitionRef.current.stop();
     if (demoTimerRef.current)   clearInterval(demoTimerRef.current);
     if (wsRef.current)          wsRef.current.close();
+    if (audioRef.current)       { audioRef.current.pause(); audioRef.current = null; }
 
     if (sessionIdRef.current) {
       endSession(sessionIdRef.current).catch(console.error);
@@ -213,19 +230,70 @@ export default function SimPage({ simState, onStop }) {
     startSession(sessionId)
       .then(() => {
         const ws = connectSessionWS(sessionId, (msg) => {
-          if (msg.type === 'final_transcript') {
-            // 화면 표시는 Web Speech가 담당, 여기선 생략
-            // B 담당 분석용으로만 사용
-          }
-          if (msg.type === 'live_metrics') {
-            setWpm(msg.wpm);
-            setFillerCount(msg.filler_count);
-          }
-          if (msg.type === 'session_state') {
-            console.log('[세션 상태]', msg.state);
-          }
-          if (msg.type === 'stop_tts') {
-            console.log('[Barge-in] TTS 중단');
+          if (stoppedRef.current) return;
+          switch (msg.type) {
+
+            case 'live_metrics':
+              setWpm(msg.wpm ?? 0);
+              setFillerCount(msg.filler_count ?? 0);
+              break;
+
+            case 'live_feedback':
+              setLiveFeedback(msg.message);
+              setTimeout(() => setLiveFeedback(null), 5000);
+              break;
+
+            case 'audience_reaction': {
+              const moodMap = {
+                nodding:    'nodding',
+                cold:       'cold',
+                interested: 'interested',
+                confused:   'cold',
+                applause:   'nodding',
+                raising:    'question',
+              };
+              const mood = moodMap[msg.reaction];
+              if (mood) setAudienceMoods(computeMoods(mood, memberCountRef.current));
+              break;
+            }
+
+            case 'interrupt_question':
+              interruptLogRef.current.push(msg.question_text);
+              setInterruptCount(c => c + 1);
+              setInterruptLog([...interruptLogRef.current]);
+              setBubbleText(msg.question_text);
+              setBubbleVisible(true);
+              setAudienceMoods(computeMoods('question', memberCountRef.current));
+              setTimeout(() => setBubbleVisible(false), 12000);
+              break;
+
+            case 'tts_audio': {
+              try {
+                const audio = new Audio(`data:audio/${msg.format ?? 'mp3'};base64,${msg.audio_base64}`);
+                audioRef.current = audio;
+                audio.onended = () => {
+                  audioRef.current = null;
+                  if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'tts_finished', question_id: msg.question_id ?? 'q' }));
+                  }
+                };
+                audio.play().catch(console.error);
+              } catch (e) {
+                console.error('[TTS] 재생 오류:', e);
+              }
+              break;
+            }
+
+            case 'stop_tts':
+              if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current = null;
+              }
+              break;
+
+            case 'session_state':
+              console.log('[세션 상태]', msg.state);
+              break;
           }
         });
         wsRef.current = ws;
@@ -365,6 +433,10 @@ export default function SimPage({ simState, onStop }) {
             <div className="stat-label">인터럽트</div>
           </div>
         </div>
+
+        {liveFeedback && (
+          <div className="live-feedback">{liveFeedback}</div>
+        )}
 
         <div>
           <div className="hud__title">// 발화 텍스트</div>

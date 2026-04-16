@@ -2,7 +2,7 @@ import { useState } from 'react';
 import SetupPage  from './pages/SetupPage';
 import SimPage    from './pages/SimPage';
 import ReportPage from './pages/ReportPage';
-import { createSession, startSession, endSession, connectWS, disconnectWS } from './services/claudeApi';
+import { createSession } from './services/claudeApi';
 
 const INITIAL_SIM_STATE = {
   type:          'academic',
@@ -19,7 +19,6 @@ const INITIAL_SIM_STATE = {
   wpmHistory:    [],
   interruptLog:  [],
   sessionId:     null,
-  backendMetrics: null,
 };
 
 export default function App() {
@@ -30,37 +29,19 @@ export default function App() {
   async function handleStart(config) {
     setLoading(true);
     let sessionId = null;
-
     try {
       const session = await createSession(config);
       sessionId = session.session_id;
-      await startSession(sessionId);
-
-      connectWS(sessionId, {
-        onMetrics:         (msg) => setSimState(prev => ({ ...prev, backendMetrics: msg })),
-        onAudienceReaction:(msg) => setSimState(prev => ({ ...prev, audienceReaction: msg.reaction })),
-        onSessionState:    (msg) => console.log('[WS] 세션 상태:', msg.state),
-      });
     } catch (e) {
       console.warn('[API] 백엔드 연결 실패, 로컬 모드로 진행:', e.message);
     } finally {
       setLoading(false);
     }
-
     setSimState({ ...INITIAL_SIM_STATE, ...config, sessionId });
     setPage('sim');
   }
 
-  async function handleStop(runtimeData) {
-    const sessionId = simState.sessionId;
-    if (sessionId) {
-      try {
-        await endSession(sessionId);
-      } catch (e) {
-        console.warn('[API] 세션 종료 실패:', e.message);
-      }
-      disconnectWS();
-    }
+  function handleStop(runtimeData) {
     setSimState(prev => ({ ...prev, ...runtimeData }));
     setPage('report');
   }

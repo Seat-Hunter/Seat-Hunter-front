@@ -67,6 +67,11 @@
 }
 .audience-member--interested {
   border-color: var(--accent);
+  box-shadow: 0 0 8px rgba(123, 200, 227, 0.4);
+}
+
+.audience-member--nodding .audience-member__body {
+  background: #2a3a2a;
 }
 
 @keyframes nod {
@@ -275,6 +280,25 @@
   padding-left: 8px;
   line-height: 1.5;
   opacity: 0.8;
+}
+
+/* ── Live feedback toast ── */
+.live-feedback {
+  background: rgba(123, 200, 227, 0.08);
+  border: 1px solid var(--accent3);
+  border-left: 3px solid var(--accent3);
+  padding: 8px 12px;
+  border-radius: 2px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent3);
+  line-height: 1.5;
+  animation: feedbackIn 0.3s ease;
+}
+
+@keyframes feedbackIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 /* ── Stop button ── */
