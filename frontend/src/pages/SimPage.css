@@ -254,8 +254,9 @@
   margin-top: 8px;
 }
 
-.transcript-box__word   { color: var(--text); }
-.transcript-box__filler { color: var(--accent2); }
+.transcript-box__word    { color: var(--text); }
+.transcript-box__filler  { color: var(--accent2); }
+.transcript-box__interim { color: var(--text); opacity: 0.4; }
 
 /* ── Interrupt log ── */
 .interrupt-log {

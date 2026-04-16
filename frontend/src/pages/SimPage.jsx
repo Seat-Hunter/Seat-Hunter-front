@@ -52,6 +52,7 @@ export default function SimPage({ simState, onStop }) {
   const [interruptCount, setInterruptCount]   = useState(0);
   const [interruptLog, setInterruptLog]       = useState([]);
   const [transcriptWords, setTranscriptWords] = useState([]);
+  const [interimText, setInterimText]         = useState('');
   const [audienceMoods, setAudienceMoods]     = useState(() => computeMoods('neutral', memberCount));
   const [bubbleText, setBubbleText]           = useState('');
   const [bubbleVisible, setBubbleVisible]     = useState(false);
@@ -225,10 +226,16 @@ export default function SimPage({ simState, onStop }) {
       recognitionRef.current = r;
       r.onresult = (e) => {
         let final = '';
+        let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
           if (e.results[i].isFinal) final += e.results[i][0].transcript + ' ';
+          else interim += e.results[i][0].transcript;
         }
-        if (final) processNewText(final);
+        if (final) {
+          setInterimText('');
+          processNewText(final);
+        }
+        if (interim) setInterimText(interim);
       };
       r.onerror = () => startDemo();
       r.onend   = () => { if (!stoppedRef.current) r.start(); };
@@ -326,14 +333,19 @@ export default function SimPage({ simState, onStop }) {
         <div>
           <div className="hud__title">// 발화 텍스트</div>
           <div className="transcript-box" ref={transcriptBoxRef}>
-            {transcriptWords.length === 0 ? (
+            {transcriptWords.length === 0 && !interimText ? (
               <span>대기 중...</span>
             ) : (
-              transcriptWords.map((w, i) => (
-                <span key={i} className={w.isFiller ? 'transcript-box__filler' : 'transcript-box__word'}>
-                  {w.text}{' '}
-                </span>
-              ))
+              <>
+                {transcriptWords.map((w, i) => (
+                  <span key={i} className={w.isFiller ? 'transcript-box__filler' : 'transcript-box__word'}>
+                    {w.text}{' '}
+                  </span>
+                ))}
+                {interimText && (
+                  <span className="transcript-box__interim">{interimText}</span>
+                )}
+              </>
             )}
           </div>
         </div>
