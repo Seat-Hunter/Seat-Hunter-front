@@ -44,7 +44,7 @@
   border-radius: 50%;
   background: #2a2a2a;
   margin: 16% auto 8%;
-  transition: transform 0.3s;
+  transition: transform 0.3s, background 0.3s;
 }
 
 .audience-member__body {
@@ -53,35 +53,78 @@
   border-radius: 4px 4px 0 0;
   background: #222;
   margin: 0 auto;
+  transition: background 0.3s, transform 0.3s;
 }
 
-/* mood variants */
+/* ── mood: nodding (끄덕임) ── */
 .audience-member--nodding .audience-member__head {
   animation: nod 0.6s ease-in-out infinite;
 }
-.audience-member--raising .audience-member__head {
-  animation: raise 1s ease-in-out forwards;
-}
-.audience-member--cold {
-  filter: saturate(0) brightness(0.6);
-}
-.audience-member--interested {
-  border-color: var(--accent);
-  box-shadow: 0 0 8px rgba(123, 200, 227, 0.4);
-}
-
 .audience-member--nodding .audience-member__body {
   background: #2a3a2a;
 }
 
-@keyframes nod {
-  0%, 100% { transform: rotate(0deg); }
-  50%       { transform: rotate(12deg); }
+/* ── mood: cold (파란색) ── */
+.audience-member--cold {
+  border-color: #4a9eff;
+  box-shadow: 0 0 8px rgba(74, 158, 255, 0.4);
+  filter: hue-rotate(180deg) brightness(0.75);
 }
+
+/* ── mood: interested (빨간색) ── */
+.audience-member--interested {
+  border-color: #ff4d4d;
+  box-shadow: 0 0 8px rgba(255, 77, 77, 0.4);
+}
+.audience-member--interested .audience-member__head {
+  background: #3a2222;
+}
+.audience-member--interested .audience-member__body {
+  background: #2e1a1a;
+}
+
+/* ── mood: raising (손들기, 초록색) ── */
+.audience-member--raising {
+  border-color: #4caf50;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.5);
+}
+.audience-member--raising .audience-member__head {
+  animation: raise 1s ease-in-out forwards;
+  background: #2a3a2a;
+}
+.audience-member--raising .audience-member__body {
+  background: #1e2e1e;
+}
+
+/* ── mood: applause (박수, 금색) ── */
+.audience-member--applause {
+  border-color: #ffd700;
+  box-shadow: 0 0 12px rgba(255, 215, 0, 0.6);
+}
+.audience-member--applause .audience-member__head {
+  animation: nod 0.3s ease-in-out infinite;
+  background: #3a3520;
+}
+.audience-member--applause .audience-member__body {
+  animation: clap 0.3s ease-in-out infinite;
+  background: #2e2a18;
+}
+
+/* ── keyframes ── */
+@keyframes nod {
+  0%, 100% { transform: rotate(0deg) translateY(0); }
+  50%       { transform: rotate(25deg) translateY(-4px); }
+}
+
 @keyframes raise {
   0%   { transform: translateY(0); }
   50%  { transform: translateY(-8px); }
   100% { transform: translateY(0); }
+}
+
+@keyframes clap {
+  0%, 100% { transform: scaleX(1); }
+  50%       { transform: scaleX(0.82); }
 }
 
 /* ── Interrupt Bubble ── */

@@ -19,15 +19,39 @@ const DEMO_TEXTS = [
   '감사합니다. 질문 있으시면 말씀해주세요.',
 ];
 
+// ── mood 배열 생성 ─────────────────────────────────────
+// nodding   : 전체 끄덕임
+// cold      : 전체 파란색
+// interested: 전체 빨간색
+// question  : 랜덤 1명만 raising (초록), 나머지 null
+// applause  : 전체 박수 (금색)
+// neutral   : 전체 null
 function computeMoods(mood, count) {
-  return Array.from({ length: count }, (_, i) => {
+  if (mood === 'question') {
+    const idx = Math.floor(Math.random() * count);
+    return Array.from({ length: count }, (_, i) => i === idx ? 'raising' : null);
+  }
+  if (mood === 'applause') {
+    return Array.from({ length: count }, () => 'applause');
+  }
+  return Array.from({ length: count }, () => {
     if (mood === 'nodding')    return 'nodding';
     if (mood === 'cold')       return 'cold';
     if (mood === 'interested') return 'interested';
-    if (mood === 'question')   return i % 3 === 0 ? 'raising' : null;
     return null;
   });
 }
+
+// ── mood 지속시간 규칙 ─────────────────────────────────
+// nodding   : 1.5초 후 neutral 복귀
+// applause  : 2초 후 neutral 복귀 (stopSim에서 직접 처리)
+// raising   : tts_finished / stop_tts 시 neutral 복귀
+// cold      : 다음 mood 올 때까지 유지
+// interested: 다음 mood 올 때까지 유지
+const MOOD_DURATION = {
+  nodding:  1500,
+  applause: 2000,
+};
 
 function AudienceMember({ mood }) {
   const cls = ['audience-member', mood ? `audience-member--${mood}` : ''].join(' ');
@@ -40,7 +64,7 @@ function AudienceMember({ mood }) {
 }
 
 export default function SimPage({ simState, onStop }) {
-  const { type, audience, audienceCount, difficulty, duration, interrupt: interruptOn, sessionId } = simState;
+  const { type, audience, audienceCount, difficulty, duration, interrupt: interruptOn, sessionId, demoMode } = simState;
 
   const totalSec    = duration * 60;
   const memberCount = Math.min(audienceCount, 20);
@@ -58,6 +82,8 @@ export default function SimPage({ simState, onStop }) {
   const [bubbleVisible, setBubbleVisible]     = useState(false);
   const [listenLabel, setListenLabel]         = useState('마이크 듣는 중...');
   const [liveFeedback, setLiveFeedback]       = useState(null);
+  const [demoCurrentText, setDemoCurrentText] = useState('');
+
   // ── 런타임 refs
   const startTimeRef         = useRef(Date.now());
   const transcriptRef        = useRef('');
@@ -76,6 +102,41 @@ export default function SimPage({ simState, onStop }) {
   const stoppedRef           = useRef(false);
   const wsRef                = useRef(null);
   const audioRef             = useRef(null);
+  const moodTimerRef         = useRef(null);
+  const interimConfirmedRef  = useRef('');    // interim에서 이미 확정 처리한 텍스트
+  const currentMoodRef       = useRef('neutral'); // 현재 베이스 mood 추적
+  const isDemoRef            = useRef(demoMode);  // 데모 모드 여부 (prop으로 초기화)
+
+  // ── 베이스 mood 적용 (전체 청중)
+  const applyMoodRef = useRef(null);
+  applyMoodRef.current = function applyMood(mood) {
+    if (mood === 'question') return; // question은 applyQuestion으로만
+    if (moodTimerRef.current) clearTimeout(moodTimerRef.current);
+    currentMoodRef.current = mood;
+    setAudienceMoods(computeMoods(mood, memberCountRef.current));
+    if (MOOD_DURATION[mood]) {
+      moodTimerRef.current = setTimeout(() => {
+        currentMoodRef.current = 'neutral';
+        setAudienceMoods(computeMoods('neutral', memberCountRef.current));
+      }, MOOD_DURATION[mood]);
+    }
+  };
+
+  // ── 질문 적용 (현재 mood 유지하면서 랜덤 1명만 raising)
+  const applyQuestionRef = useRef(null);
+  applyQuestionRef.current = function applyQuestion() {
+    const count = memberCountRef.current;
+    const idx = Math.floor(Math.random() * count);
+    setAudienceMoods(computeMoods(currentMoodRef.current, count).map(
+      (m, i) => i === idx ? 'raising' : m
+    ));
+  };
+
+  // ── 질문 종료 후 현재 mood로 복귀
+  const clearQuestionRef = useRef(null);
+  clearQuestionRef.current = function clearQuestion() {
+    setAudienceMoods(computeMoods(currentMoodRef.current, memberCountRef.current));
+  };
 
   // ── prop refs
   const onStopRef      = useRef(onStop);
@@ -93,8 +154,8 @@ export default function SimPage({ simState, onStop }) {
   function processNewText(text) {
     transcriptRef.current += text;
 
-    // 백엔드로 최종 전사 전송 → 인터럽트 트리거
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
+    // 데모 모드에선 백엔드로 transcript 전송 안 함 (인터럽트 판단 방지)
+    if (!isDemoRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'partial_transcript',
         text,
@@ -111,12 +172,16 @@ export default function SimPage({ simState, onStop }) {
       if (FILLERS.includes(clean)) fillerCountRef.current++;
     });
 
-    const allWords = transcriptRef.current.split(/\s+/).slice(-60);
-    const parsed = allWords.map(w => {
-      const clean = w.replace(/[^가-힣a-z]/gi, '');
-      return { text: w, isFiller: FILLERS.includes(clean) };
-    });
-    setTranscriptWords(parsed);
+    // 실행 모드에서 transcriptWords는 백엔드 final_transcript로만 업데이트
+    // 데모 모드에서만 로컬에서 직접 업데이트
+    if (isDemoRef.current) {
+      const allWords = transcriptRef.current.split(/\s+/).slice(-60);
+      const parsed = allWords.map(w => {
+        const clean = w.replace(/[^가-힣a-z]/gi, '');
+        return { text: w, isFiller: FILLERS.includes(clean) };
+      });
+      setTranscriptWords(parsed);
+    }
     setFillerCount(fillerCountRef.current);
 
     const elapsedMin = (Date.now() - startTimeRef.current) / 60000;
@@ -124,22 +189,21 @@ export default function SimPage({ simState, onStop }) {
     wpmHistoryRef.current.push(currentWpm);
     setWpm(currentWpm);
 
-    // 백엔드 WS가 없을 때만 로컬 로직으로 청중 반응 업데이트
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      const count = memberCountRef.current;
+    // 데모 모드에선 시나리오가 mood 담당 / 백엔드 WS 없을 때만 로컬 계산
+    if (!isDemoRef.current && (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)) {
       if (currentWpm > 80 && currentWpm < 160 && fillerCountRef.current < 5) {
-        setAudienceMoods(computeMoods('nodding', count));
+        applyMoodRef.current('nodding');
       } else if (currentWpm > 160 || fillerCountRef.current > 8) {
-        setAudienceMoods(computeMoods('cold', count));
+        applyMoodRef.current('cold');
       } else {
-        setAudienceMoods(computeMoods('interested', count));
+        applyMoodRef.current('interested');
       }
     }
   }
 
   // ── 종료
   const stopSimRef = useRef(null);
-  stopSimRef.current = function stopSim() {
+  stopSimRef.current = function stopSim(withApplause = false) {
     if (stoppedRef.current) return;
     stoppedRef.current = true;
 
@@ -155,71 +219,116 @@ export default function SimPage({ simState, onStop }) {
       endSession(sessionIdRef.current).catch(console.error);
     }
 
-    onStopRef.current({
+    const reportData = {
       elapsed:      Math.floor((Date.now() - startTimeRef.current) / 1000),
       transcript:   transcriptRef.current,
       wordCount:    wordCountRef.current,
       fillerCount:  fillerCountRef.current,
       wpmHistory:   wpmHistoryRef.current,
       interruptLog: interruptLogRef.current,
-    });
+    };
+
+    if (withApplause) {
+      // 타이머 종료 시 박수 2초 후 리포트
+      setAudienceMoods(computeMoods('applause', memberCountRef.current));
+      // const applauseAudio = new Audio('/sounds/applause.mp3');
+      // applauseAudio.play().catch(console.error);
+      setTimeout(() => onStopRef.current(reportData), 2000);
+    } else {
+      // 종료 버튼 → 바로 리포트
+      onStopRef.current(reportData);
+    }
   };
 
-  // ── 인터럽트
+  // ── 인터럽트 (백엔드 interrupt_question WS 메시지로 동작 — 로컬 로직 없음)
   const maybeInterruptRef = useRef(null);
-  maybeInterruptRef.current = async function maybeInterrupt() {
-    if (!interruptOnRef.current) return;
-    if (interruptCooldownRef.current || interruptPendingRef.current) return;
-    if (transcriptRef.current.length < 80) return;
-    if (stoppedRef.current) return;
-
-    interruptPendingRef.current  = true;
-    interruptCooldownRef.current = true;
-
-    let question = null;
-    try {
-      question = await generateInterruptQuestion({
-        audience:   audienceRef.current,
-        type:       typeRef.current,
-        difficulty: difficultyRef.current,
-        context:    transcriptRef.current.slice(-400),
-      });
-    } catch {
-      interruptPendingRef.current  = false;
-      interruptCooldownRef.current = false;
-      return;
-    }
-
-    if (!question || stoppedRef.current) {
-      interruptPendingRef.current  = false;
-      interruptCooldownRef.current = false;
-      return;
-    }
-
-    interruptLogRef.current.push(question);
-    setInterruptCount(c => c + 1);
-    setInterruptLog([...interruptLogRef.current]);
-    setBubbleText(question);
-    setBubbleVisible(true);
-    setAudienceMoods(computeMoods('question', memberCountRef.current));
-
-    setTimeout(() => {
-      setBubbleVisible(false);
-      interruptPendingRef.current = false;
-    }, 12000);
-
-    setTimeout(() => {
-      interruptCooldownRef.current = false;
-    }, INTERRUPT_INTERVALS[difficultyRef.current] * 1000);
+  maybeInterruptRef.current = function maybeInterrupt() {
+    // TODO: 백엔드 B 구현 후 여기서 처리 (현재는 WS interrupt_question 메시지로만 동작)
   };
+
+  // ── 데모 시나리오 ─────────────────────────────────────
+  // 각 텍스트에 대응하는 청중 반응 + 인터럽트 질문 정의
+  const DEMO_SCENARIO = [
+    { mood: null,         interrupt: null, feedback: null },                                                              // 0: 인사
+    { mood: 'interested', interrupt: null, feedback: null },                                                              // 1: AI 기반 소개
+    { mood: 'cold',       interrupt: null, feedback: '필러 단어가 늘고 있습니다. 잠깐 멈추고 정리 후 말씀해보세요.' },       // 2: 어~ 필러
+    { mood: 'nodding',    interrupt: null, feedback: null },                                                              // 3: 주요 기능
+    { mood: 'cold',       interrupt: '현재 시장에서 유사한 서비스와 차별점이 무엇인가요?', feedback: null },                // 4: 음~ 필러 → 질문
+    { mood: 'nodding',    interrupt: null, feedback: null },                                                              // 5: 시장 규모
+    { mood: 'interested', interrupt: null, feedback: null },                                                              // 6: 차별점
+    { mood: 'cold',       interrupt: '그 실전 경험이 실제 발표력 향상에 얼마나 효과적인가요?', feedback: '말속도가 너무 빠릅니다. 천천히 말씀해보세요.' }, // 7: 그~ 필러 → 질문
+    { mood: 'nodding',    interrupt: null, feedback: null },                                                              // 8: 비즈니스 모델
+    { mood: 'applause',   interrupt: null, feedback: null },                                                              // 9: 감사합니다
+  ];
 
   // ── 데모 모드
   function startDemo() {
     setListenLabel('데모 모드 (마이크 없음)');
     demoTimerRef.current = setInterval(() => {
-      if (demoIdxRef.current < DEMO_TEXTS.length && !stoppedRef.current) {
-        processNewText(DEMO_TEXTS[demoIdxRef.current++]);
+      const idx = demoIdxRef.current;
+      if (idx >= DEMO_TEXTS.length || stoppedRef.current) return;
+
+      const scenario = DEMO_SCENARIO[idx];
+      const demoText = DEMO_TEXTS[idx];
+
+      // 0ms — 텍스트 표시
+      processNewText(demoText);
+      setDemoCurrentText(demoText);
+
+      // 텍스트와 동시에 청중 반응 (0ms)
+      if (scenario.mood) {
+        applyMoodRef.current(scenario.mood);
       }
+
+      // 2000ms — 피드백
+      if (scenario.feedback) {
+        setTimeout(() => {
+          if (!stoppedRef.current) {
+            setLiveFeedback(scenario.feedback);
+            setTimeout(() => setLiveFeedback(null), 5000);
+          }
+        }, 2000);
+      }
+
+      // 2500ms — 인터럽트 질문
+      if (scenario.interrupt && interruptOnRef.current && !interruptCooldownRef.current) {
+        interruptCooldownRef.current = true;
+        const question = scenario.interrupt;
+
+        setTimeout(() => {
+          if (stoppedRef.current) return;
+          interruptLogRef.current.push(question);
+          setInterruptCount(c => c + 1);
+          setInterruptLog([...interruptLogRef.current]);
+          setBubbleText(question);
+          setBubbleVisible(true);
+
+          // mood 적용 후 raising 덮어씌움
+          setTimeout(() => applyQuestionRef.current(), 0);
+
+          // TTS
+          const utter = new SpeechSynthesisUtterance(question);
+          utter.lang = 'ko-KR';
+          utter.rate = 0.85;
+
+          const onDone = () => {
+            clearTimeout(fallback);
+            setBubbleVisible(false);
+            clearQuestionRef.current();
+            interruptCooldownRef.current = false;
+          };
+          const fallback = setTimeout(() => {
+            speechSynthesis.cancel();
+            onDone();
+          }, 15000);
+          utter.onend = onDone;
+
+          speechSynthesis.cancel();
+          speechSynthesis.speak(utter);
+        }, 2500);
+      }
+
+      demoIdxRef.current++;
     }, 4000);
   }
 
@@ -233,6 +342,11 @@ export default function SimPage({ simState, onStop }) {
           if (stoppedRef.current) return;
           switch (msg.type) {
 
+            case 'final_transcript':
+              // 백엔드 확정 자막 — 자막 표시는 Web Speech final이 담당
+              // WPM/필러는 live_metrics로 수신
+              break;
+
             case 'live_metrics':
               setWpm(msg.wpm ?? 0);
               setFillerCount(msg.filler_count ?? 0);
@@ -243,53 +357,45 @@ export default function SimPage({ simState, onStop }) {
               setTimeout(() => setLiveFeedback(null), 5000);
               break;
 
-            case 'audience_reaction': {
-              const moodMap = {
-                nodding:    'nodding',
-                cold:       'cold',
-                interested: 'interested',
-                confused:   'cold',
-                applause:   'nodding',
-                raising:    'question',
-              };
-              const mood = moodMap[msg.reaction];
-              if (mood) setAudienceMoods(computeMoods(mood, memberCountRef.current));
-              break;
-            }
+            // ── B 역할 구현 후 활성화 ─────────────────────────
+            // case 'audience_reaction': {
+            //   const moodMap = {
+            //     nodding: 'nodding', cold: 'cold', interested: 'interested',
+            //     confused: 'cold', applause: 'applause', raising: 'question',
+            //   };
+            //   const mood = moodMap[msg.reaction];
+            //   if (mood) applyMoodRef.current(mood);
+            //   break;
+            // }
 
-            case 'interrupt_question':
-              interruptLogRef.current.push(msg.question_text);
-              setInterruptCount(c => c + 1);
-              setInterruptLog([...interruptLogRef.current]);
-              setBubbleText(msg.question_text);
-              setBubbleVisible(true);
-              setAudienceMoods(computeMoods('question', memberCountRef.current));
-              setTimeout(() => setBubbleVisible(false), 12000);
-              break;
+            // case 'interrupt_question':
+            //   interruptLogRef.current.push(msg.question_text);
+            //   setInterruptCount(c => c + 1);
+            //   setInterruptLog([...interruptLogRef.current]);
+            //   setBubbleText(msg.question_text);
+            //   setBubbleVisible(true);
+            //   applyQuestionRef.current();
+            //   setTimeout(() => { setBubbleVisible(false); clearQuestionRef.current(); }, 12000);
+            //   break;
 
-            case 'tts_audio': {
-              try {
-                const audio = new Audio(`data:audio/${msg.format ?? 'mp3'};base64,${msg.audio_base64}`);
-                audioRef.current = audio;
-                audio.onended = () => {
-                  audioRef.current = null;
-                  if (ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({ type: 'tts_finished', question_id: msg.question_id ?? 'q' }));
-                  }
-                };
-                audio.play().catch(console.error);
-              } catch (e) {
-                console.error('[TTS] 재생 오류:', e);
-              }
-              break;
-            }
+            // case 'tts_audio': {
+            //   const audio = new Audio(`data:audio/${msg.format ?? 'mp3'};base64,${msg.audio_base64}`);
+            //   audioRef.current = audio;
+            //   audio.onended = () => {
+            //     audioRef.current = null;
+            //     clearQuestionRef.current();
+            //     if (ws.readyState === WebSocket.OPEN)
+            //       ws.send(JSON.stringify({ type: 'tts_finished', question_id: msg.question_id ?? 'q' }));
+            //   };
+            //   audio.play().catch(console.error);
+            //   break;
+            // }
 
-            case 'stop_tts':
-              if (audioRef.current) {
-                audioRef.current.pause();
-                audioRef.current = null;
-              }
-              break;
+            // case 'stop_tts':
+            //   if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+            //   clearQuestionRef.current();
+            //   break;
+            // ─────────────────────────────────────────────────
 
             case 'session_state':
               console.log('[세션 상태]', msg.state);
@@ -313,7 +419,7 @@ export default function SimPage({ simState, onStop }) {
       const elapsedSec = Math.floor((Date.now() - startTimeRef.current) / 1000);
       setElapsed(elapsedSec);
       if (elapsedSec >= totalSecRef.current) {
-        stopSimRef.current();
+        stopSimRef.current(true);
         return;
       }
       if (elapsedSec > 0 && elapsedSec % 5 === 0) {
@@ -336,14 +442,36 @@ export default function SimPage({ simState, onStop }) {
           else interim += e.results[i][0].transcript;
         }
         if (final) {
+          // Web Speech final → 밝은색 확정 자막 + 백엔드 전송
           setInterimText('');
           processNewText(final);
+        } else if (interim) {
+          // interim → 어두운색 임시 자막 + 실시간 WPM/필러 로컬 계산
+          setInterimText(interim);
+
+          // 실시간 WPM 계산 (interim 기준)
+          const allText = transcriptRef.current + interim;
+          const totalWords = allText.trim().split(/\s+/).filter(Boolean).length;
+          const elapsedMin = (Date.now() - startTimeRef.current) / 60000;
+          if (elapsedMin > 0) setWpm(Math.round(totalWords / elapsedMin));
+
+          // 실시간 필러 계산 (interim 기준)
+          const interimWords = interim.trim().split(/\s+/);
+          const interimFillers = interimWords.filter(w => {
+            const clean = w.replace(/[^가-힣a-z]/gi, '');
+            return FILLERS.includes(clean);
+          }).length;
+          setFillerCount(fillerCountRef.current + interimFillers);
         }
-        if (interim) setInterimText(interim);
       };
-      r.onerror = () => startDemo();
-      r.onend   = () => { if (!stoppedRef.current) r.start(); };
-      r.start();
+      r.onerror = () => { if (!demoMode) console.warn('[STT] 마이크 오류'); };
+      r.onend   = () => { if (!stoppedRef.current && !demoMode) r.start(); };
+      if (demoMode) {
+        r.abort?.();
+        startDemo();
+      } else {
+        r.start();
+      }
     } else {
       startDemo();
     }
@@ -441,19 +569,27 @@ export default function SimPage({ simState, onStop }) {
         <div>
           <div className="hud__title">// 발화 텍스트</div>
           <div className="transcript-box" ref={transcriptBoxRef}>
-            {transcriptWords.length === 0 && !interimText ? (
-              <span>대기 중...</span>
+            {demoMode ? (
+              /* 데모 모드: 시나리오 텍스트 표시 */
+              demoCurrentText
+                ? <span className="transcript-box__word">{demoCurrentText}</span>
+                : <span>대기 중...</span>
             ) : (
-              <>
-                {transcriptWords.map((w, i) => (
-                  <span key={i} className={w.isFiller ? 'transcript-box__filler' : 'transcript-box__word'}>
-                    {w.text}{' '}
-                  </span>
-                ))}
-                {interimText && (
-                  <span className="transcript-box__interim">{interimText}</span>
-                )}
-              </>
+              /* 실행 모드: partial(어두운) + final(밝은) */
+              transcriptWords.length === 0 && !interimText ? (
+                <span>대기 중...</span>
+              ) : (
+                <>
+                  {transcriptWords.map((w, i) => (
+                    <span key={i} className={w.isFiller ? 'transcript-box__filler' : 'transcript-box__word'}>
+                      {w.text}{' '}
+                    </span>
+                  ))}
+                  {interimText && (
+                    <span className="transcript-box__interim">{interimText}</span>
+                  )}
+                </>
+              )
             )}
           </div>
         </div>

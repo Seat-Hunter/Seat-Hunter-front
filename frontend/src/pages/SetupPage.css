@@ -155,3 +155,33 @@
 .btn-primary:active {
   transform: translateY(0);
 }
+
+/* ── 버튼 그룹 ── */
+.btn-group {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.btn-primary {
+  align-self: unset;
+}
+
+/* ── 데모 버튼 ── */
+.btn-demo {
+  background: transparent;
+  border: 1px solid var(--muted);
+  color: var(--muted);
+  padding: 18px 32px;
+  font-family: var(--display);
+  font-size: 22px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all 0.2s;
+}
+
+.btn-demo:hover {
+  border-color: var(--accent3);
+  color: var(--accent3);
+}
