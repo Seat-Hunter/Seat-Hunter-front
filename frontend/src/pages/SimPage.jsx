@@ -80,6 +80,7 @@ export default function SimPage({ simState, onStop }) {
   const [audienceMoods, setAudienceMoods]     = useState(() => computeMoods('neutral', memberCount));
   const [bubbleText, setBubbleText]           = useState('');
   const [bubbleVisible, setBubbleVisible]     = useState(false);
+  const [bubbleResolved, setBubbleResolved]   = useState(false);
   const [listenLabel, setListenLabel]         = useState('마이크 듣는 중...');
   const [liveFeedback, setLiveFeedback]       = useState(null);
   const [demoCurrentText, setDemoCurrentText] = useState('');
@@ -357,45 +358,72 @@ export default function SimPage({ simState, onStop }) {
               setTimeout(() => setLiveFeedback(null), 5000);
               break;
 
-            // ── B 역할 구현 후 활성화 ─────────────────────────
-            // case 'audience_reaction': {
-            //   const moodMap = {
-            //     nodding: 'nodding', cold: 'cold', interested: 'interested',
-            //     confused: 'cold', applause: 'applause', raising: 'question',
-            //   };
-            //   const mood = moodMap[msg.reaction];
-            //   if (mood) applyMoodRef.current(mood);
-            //   break;
-            // }
+            case 'audience_reaction': {
+              const moodMap = {
+                nodding: 'nodding', cold: 'cold', interested: 'interested',
+                confused: 'cold', applause: 'applause', raising: 'question',
+                satisfied: 'nodding', impressed: 'applause', neutral: 'neutral',
+              };
+              const mood = moodMap[msg.reaction];
+              if (mood) applyMoodRef.current(mood);
+              break;
+            }
 
-            // case 'interrupt_question':
-            //   interruptLogRef.current.push(msg.question_text);
-            //   setInterruptCount(c => c + 1);
-            //   setInterruptLog([...interruptLogRef.current]);
-            //   setBubbleText(msg.question_text);
-            //   setBubbleVisible(true);
-            //   applyQuestionRef.current();
-            //   setTimeout(() => { setBubbleVisible(false); clearQuestionRef.current(); }, 12000);
-            //   break;
+            case 'interrupt_question':
+              if (!msg.is_follow_up) {
+                interruptLogRef.current.push(msg.question_text);
+                setInterruptCount(c => c + 1);
+                setInterruptLog([...interruptLogRef.current]);
+              }
+              setBubbleText(msg.question_text);
+              setBubbleVisible(true);
+              applyQuestionRef.current();
+              break;
 
-            // case 'tts_audio': {
-            //   const audio = new Audio(`data:audio/${msg.format ?? 'mp3'};base64,${msg.audio_base64}`);
-            //   audioRef.current = audio;
-            //   audio.onended = () => {
-            //     audioRef.current = null;
-            //     clearQuestionRef.current();
-            //     if (ws.readyState === WebSocket.OPEN)
-            //       ws.send(JSON.stringify({ type: 'tts_finished', question_id: msg.question_id ?? 'q' }));
-            //   };
-            //   audio.play().catch(console.error);
-            //   break;
-            // }
+            case 'tts_audio': {
+              if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+              const audio = new Audio(`data:audio/${msg.format ?? 'mp3'};base64,${msg.audio_base64}`);
+              audioRef.current = audio;
+              const fallback = setTimeout(() => {
+                if (ws.readyState === WebSocket.OPEN)
+                  ws.send(JSON.stringify({ type: 'tts_finished', question_id: msg.question_id ?? 'q' }));
+              }, 15000);
+              audio.onended = () => {
+                clearTimeout(fallback);
+                audioRef.current = null;
+                setBubbleVisible(false);
+                clearQuestionRef.current();
+                if (ws.readyState === WebSocket.OPEN)
+                  ws.send(JSON.stringify({ type: 'tts_finished', question_id: msg.question_id ?? 'q' }));
+              };
+              audio.onerror = () => {
+                clearTimeout(fallback);
+                audioRef.current = null;
+                if (ws.readyState === WebSocket.OPEN)
+                  ws.send(JSON.stringify({ type: 'tts_finished', question_id: msg.question_id ?? 'q' }));
+              };
+              audio.play().catch(() => {
+                clearTimeout(fallback);
+                if (ws.readyState === WebSocket.OPEN)
+                  ws.send(JSON.stringify({ type: 'tts_finished', question_id: msg.question_id ?? 'q' }));
+              });
+              break;
+            }
 
-            // case 'stop_tts':
-            //   if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
-            //   clearQuestionRef.current();
-            //   break;
-            // ─────────────────────────────────────────────────
+            case 'stop_tts':
+              if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+              setBubbleVisible(false);
+              clearQuestionRef.current();
+              break;
+
+            case 'question_resolved':
+              setBubbleResolved(true);
+              setTimeout(() => {
+                setBubbleVisible(false);
+                setBubbleResolved(false);
+                clearQuestionRef.current();
+              }, 1500);
+              break;
 
             case 'session_state':
               console.log('[세션 상태]', msg.state);
@@ -509,9 +537,18 @@ export default function SimPage({ simState, onStop }) {
     <div className="sim-page">
       {/* ── 스테이지 ── */}
       <div className="sim-stage">
-        <div className={`interrupt-bubble${bubbleVisible ? ' interrupt-bubble--show' : ''}`}>
-          <div className="interrupt-bubble__from">청중 질문</div>
-          {bubbleText}
+        <div className={`interrupt-bubble${bubbleVisible ? ' interrupt-bubble--show' : ''}${bubbleResolved ? ' interrupt-bubble--resolved' : ''}`}>
+          {bubbleResolved ? (
+            <>
+              <div className="interrupt-bubble__from">해결됨</div>
+              ✓ 답변이 충분합니다
+            </>
+          ) : (
+            <>
+              <div className="interrupt-bubble__from">청중 질문</div>
+              {bubbleText}
+            </>
+          )}
         </div>
 
         <div className="audience" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
