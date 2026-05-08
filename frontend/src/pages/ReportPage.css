@@ -115,6 +115,56 @@
   50%       { opacity: 0.4; }
 }
 
+/* ── Feedback list ── */
+.feedback-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.feedback-list li {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #ccc;
+  padding-left: 18px;
+  position: relative;
+}
+
+.feedback-list--strength li::before {
+  content: '▸';
+  color: var(--accent);
+  position: absolute;
+  left: 0;
+}
+
+.feedback-list--weakness li::before {
+  content: '▸';
+  color: var(--accent2);
+  position: absolute;
+  left: 0;
+}
+
+.feedback-list--improvement li::before {
+  content: '▸';
+  color: var(--accent3);
+  position: absolute;
+  left: 0;
+}
+
+/* ── Curriculum ── */
+.feedback-section--curriculum {
+  border-color: var(--accent);
+}
+
+.curriculum-text {
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--accent);
+}
+
 /* ── QA list ── */
 .qa-list {
   display: flex;

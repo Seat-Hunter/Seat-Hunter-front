@@ -161,17 +161,17 @@ export async function generateInterruptQuestion({ audience, type, difficulty, co
   return null;
 }
 
-// ReportPage에서 마운트 시 호출 — 백엔드 리포트의 AI 피드백 텍스트 반환
+// ReportPage에서 마운트 시 호출 — 백엔드 리포트 전체 객체 반환 (최대 20초 재시도)
 export async function generateFeedback({ type, audience, difficulty, elapsed, avgWpm, fillerCount, interruptLog, transcript, score }) {
   if (!_sessionId) return null;
-  try {
-    const report = await getReport();
-    return report?.ai_feedback
-      ?? report?.feedback
-      ?? report?.summary
-      ?? null;
-  } catch (e) {
-    console.error('[API] 피드백 조회 실패:', e);
-    return null;
+  for (let i = 0; i < 4; i++) {
+    try {
+      const report = await getReport();
+      if (report) return report;
+    } catch (e) {
+      console.warn(`[API] 리포트 조회 재시도 ${i + 1}/4:`, e.message);
+    }
+    await new Promise(r => setTimeout(r, 5000));
   }
+  return null;
 }
