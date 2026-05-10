@@ -3,10 +3,10 @@ import './SetupPage.css';
 
 // ── 상수 ──────────────────────────────────────────────
 const TYPE_OPTIONS = [
-  { val: 'academic', label: '학술 발표' },
-  { val: 'pitch',    label: 'IR 피칭' },
-  { val: 'report',   label: '사내 보고' },
-  { val: 'interview',label: '면접' },
+  { val: 'interview', label: '면접',      maxCount: 4,  fixedCount: true  },
+  { val: 'academic',  label: '학술발표',  maxCount: 20, fixedCount: false },
+  { val: 'school',    label: '학교 발표', maxCount: 18, fixedCount: false },
+  { val: 'meeting',   label: '회의',      maxCount: 5,  fixedCount: true  },
 ];
 
 const AUDIENCE_OPTIONS = [
@@ -46,20 +46,21 @@ function ChipGroup({ options, value, onChange }) {
   );
 }
 
-function RangeSlider({ id, min, max, step = 1, value, onChange }) {
+function RangeSlider({ id, min, max, step = 1, value, onChange, disabled = false }) {
   return (
     <div className="range-row">
       <input
         id={id}
         type="range"
         className="range-row__input"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
+        min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
+        disabled={disabled}
+        style={{ opacity: disabled ? 0.4 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
       />
-      <span className="range-row__val">{value}</span>
+      <span className="range-row__val">
+        {disabled ? `${value}명` : value}
+      </span>
     </div>
   );
 }
@@ -74,11 +75,18 @@ export default function SetupPage({ onStart }) {
   const [interrupt, setInterrupt]     = useState('on');
   const [script, setScript]           = useState('');
 
+  function handleTypeChange(val) {
+    const cfg = TYPE_OPTIONS.find(t => t.val === val);
+    setType(val);
+    setCount(cfg.fixedCount ? cfg.maxCount : Math.min(audienceCount, cfg.maxCount));
+  }
+
   function handleStart() {
+    const cfg = TYPE_OPTIONS.find(t => t.val === type);
     onStart({
       type,
       audience,
-      audienceCount,
+      audienceCount: cfg.fixedCount ? cfg.maxCount : audienceCount,
       difficulty,
       duration,
       interrupt: interrupt === 'on',
@@ -100,7 +108,7 @@ export default function SetupPage({ onStart }) {
         {/* 발표 유형 */}
         <div className="field">
           <label className="field__label">발표 유형</label>
-          <ChipGroup options={TYPE_OPTIONS} value={type} onChange={setType} />
+          <ChipGroup options={TYPE_OPTIONS} value={type} onChange={handleTypeChange} />
         </div>
 
         {/* 청자 유형 */}
@@ -110,15 +118,23 @@ export default function SetupPage({ onStart }) {
         </div>
 
         {/* 청중 수 */}
-        <div className="field">
-          <label className="field__label">청중 수</label>
-          <RangeSlider
-            id="audienceCount"
-            min={5} max={50} step={5}
-            value={audienceCount}
-            onChange={setCount}
-          />
-        </div>
+        {(() => {
+          const cfg = TYPE_OPTIONS.find(t => t.val === type);
+          return (
+            <div className="field">
+              <label className="field__label">청중 수</label>
+              <RangeSlider
+                id="audienceCount"
+                min={1}
+                max={cfg.maxCount}
+                step={1}
+                value={audienceCount}
+                onChange={setCount}
+                disabled={cfg.fixedCount}
+              />
+            </div>
+          );
+        })()}
 
         {/* 압박 강도 */}
         <div className="field">

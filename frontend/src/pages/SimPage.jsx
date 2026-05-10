@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import './SimPage.css';
+import AudienceSimulator from './AudienceSimulator';  // ← 추가
 import { generateInterruptQuestion, startSession, endSession, connectSessionWS } from '../services/claudeApi';
 
 // ── 상수 ───────────────────────────────────────────────
@@ -19,31 +20,34 @@ const DEMO_TEXTS = [
   '감사합니다. 질문 있으시면 말씀해주세요.',
 ];
 
+  const PRESENTATION_CONFIG = {
+    interview: { roomType: 'interview',   memberCount: 4  },
+    academic:  { roomType: 'audiovisual', memberCount: 20 },
+    school:    { roomType: 'classroom',   memberCount: 18 },
+    meeting:   { roomType: 'meeting',     memberCount: 5  },
+  };
+  const DEFAULT_CONFIG = { roomType: 'classroom', memberCount: 8 };
+
 function computeMoods(mood, count) {
   return Array.from({ length: count }, (_, i) => {
-    if (mood === 'nodding'    && i % 3 === 0) return 'nodding';
-    if (mood === 'cold')                       return 'cold';
-    if (mood === 'interested' && i % 2 === 0) return 'interested';
-    if (mood === 'question'   && i === 0)      return 'raising';
-    return null;
+    if (mood === 'nodding')    return 'nodding';
+    if (mood === 'cold')       return 'cold';
+    if (mood === 'interested') return 'interested';
+    if (mood === 'applause')   return 'applause';
+    if (mood === 'question')   return i % 3 === 0 ? 'raising' : 'neutral';
+    return 'neutral';
   });
-}
-
-function AudienceMember({ mood }) {
-  const cls = ['audience-member', mood ? `audience-member--${mood}` : ''].join(' ');
-  return (
-    <div className={cls}>
-      <div className="audience-member__head" />
-      <div className="audience-member__body" />
-    </div>
-  );
 }
 
 export default function SimPage({ simState, onStop }) {
   const { type, audience, audienceCount, difficulty, duration, interrupt: interruptOn, sessionId } = simState;
-
+  const config      = PRESENTATION_CONFIG[type] ?? DEFAULT_CONFIG;
+  const roomType    = config.roomType;
+  const audienceType = audience;
   const totalSec    = duration * 60;
-  const memberCount = Math.min(audienceCount, 20);
+  const memberCount = ['interview', 'meeting'].includes(roomType)
+    ? config.memberCount
+    : Math.min(audienceCount ?? config.memberCount, config.memberCount);
 
   // ── UI state
   const [elapsed, setElapsed]                 = useState(0);
@@ -307,22 +311,22 @@ export default function SimPage({ simState, onStop }) {
   const ss        = String(elapsed % 60).padStart(2, '0');
   const wpmPct    = Math.min(wpm / 200, 1) * 100;
   const wpmColor  = wpm < 80 || wpm > 160 ? 'stat-val--red' : 'stat-val--green';
-  const cols      = Math.min(Math.ceil(Math.sqrt(memberCount)), 5);
-
+  const cols = Math.min(Math.ceil(Math.sqrt(memberCount)), 5);
+  
   return (
     <div className="sim-page">
       {/* ── 스테이지 ── */}
-      <div className="sim-stage">
+      <div className={`sim-stage ${roomType}`}>
         <div className={`interrupt-bubble${bubbleVisible ? ' interrupt-bubble--show' : ''}`}>
           <div className="interrupt-bubble__from">청중 질문</div>
           {bubbleText}
         </div>
-
-        <div className="audience" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
-          {Array.from({ length: memberCount }, (_, i) => (
-            <AudienceMember key={i} mood={audienceMoods[i] ?? null} />
-          ))}
-        </div>
+        <AudienceSimulator
+          roomType={roomType}
+          audienceType={audienceType}
+          count={memberCount}
+          memberMoods={audienceMoods}
+        />
       </div>
 
       {/* ── HUD ── */}
