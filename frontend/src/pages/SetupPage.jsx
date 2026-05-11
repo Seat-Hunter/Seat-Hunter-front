@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import './SetupPage.css';
 
+// ── 발표 유형 — PRESENTATION_CONFIG와 연동
 const TYPE_OPTIONS = [
-  { val: 'academic', label: '학술 발표' },
-  { val: 'pitch',    label: 'IR 피칭' },
-  { val: 'report',   label: '사내 보고' },
-  { val: 'interview',label: '면접' },
+  { val: 'interview', label: '면접',      maxCount: 4,  fixedCount: true  },
+  { val: 'academic',  label: '학술발표',  maxCount: 20, fixedCount: false },
+  { val: 'school',    label: '학교 발표', maxCount: 18, fixedCount: false },
+  { val: 'meeting',   label: '회의',      maxCount: 5,  fixedCount: true  },
 ];
 
 const AUDIENCE_OPTIONS = [
@@ -44,7 +45,7 @@ function ChipGroup({ options, value, onChange }) {
   );
 }
 
-function RangeSlider({ id, min, max, step = 1, value, onChange }) {
+function RangeSlider({ id, min, max, step = 1, value, onChange, disabled = false }) {
   return (
     <div className="range-row">
       <input
@@ -56,24 +57,51 @@ function RangeSlider({ id, min, max, step = 1, value, onChange }) {
         step={step}
         value={value}
         onChange={e => onChange(Number(e.target.value))}
+        disabled={disabled}
+        style={{ opacity: disabled ? 0.4 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
       />
-      <span className="range-row__val">{value}</span>
+      <span className="range-row__val">
+        {disabled ? `${value}명 (고정)` : value}
+      </span>
     </div>
   );
 }
 
 export default function SetupPage({ onStart }) {
-  const [type, setType]             = useState('academic');
-  const [audience, setAudience]     = useState('professor');
-  const [audienceCount, setCount]   = useState(15);
+  const [type, setType]             = useState('interview');
+  const [audience, setAudience]     = useState('boss');
+  const [audienceCount, setCount]   = useState(4);
   const [difficulty, setDifficulty] = useState('medium');
   const [duration, setDuration]     = useState(3);
   const [interrupt, setInterrupt]   = useState('on');
   const [script, setScript]         = useState('');
 
-  function buildConfig(demoMode = false) {
-    return { type, audience, audienceCount, difficulty, duration, interrupt: interrupt === 'on', script, demoMode };
+  // 발표 유형 변경 시 청중 수 자동 조정
+  function handleTypeChange(val) {
+    const cfg = TYPE_OPTIONS.find(t => t.val === val);
+    setType(val);
+    if (cfg.fixedCount) {
+      setCount(cfg.maxCount);
+    } else {
+      setCount(prev => Math.min(prev, cfg.maxCount));
+    }
   }
+
+  function buildConfig(demoMode = false) {
+    const cfg = TYPE_OPTIONS.find(t => t.val === type);
+    return {
+      type,
+      audience,
+      audienceCount: cfg.fixedCount ? cfg.maxCount : audienceCount,
+      difficulty,
+      duration,
+      interrupt: interrupt === 'on',
+      script,
+      demoMode,
+    };
+  }
+
+  const currentTypeCfg = TYPE_OPTIONS.find(t => t.val === type);
 
   return (
     <div className="setup-page">
@@ -83,30 +111,51 @@ export default function SetupPage({ onStart }) {
       </div>
 
       <div className="setup-grid">
+        {/* 발표 유형 */}
         <div className="field">
           <label className="field__label">발표 유형</label>
-          <ChipGroup options={TYPE_OPTIONS} value={type} onChange={setType} />
+          <ChipGroup options={TYPE_OPTIONS} value={type} onChange={handleTypeChange} />
         </div>
+
+        {/* 청자 유형 */}
         <div className="field">
           <label className="field__label">청자 유형</label>
           <ChipGroup options={AUDIENCE_OPTIONS} value={audience} onChange={setAudience} />
         </div>
+
+        {/* 청중 수 — 고정 유형이면 슬라이더 비활성화 */}
         <div className="field">
           <label className="field__label">청중 수</label>
-          <RangeSlider id="audienceCount" min={5} max={50} step={5} value={audienceCount} onChange={setCount} />
+          <RangeSlider
+            id="audienceCount"
+            min={1}
+            max={currentTypeCfg.maxCount}
+            step={1}
+            value={audienceCount}
+            onChange={setCount}
+            disabled={currentTypeCfg.fixedCount}
+          />
         </div>
+
+        {/* 압박 강도 */}
         <div className="field">
           <label className="field__label">압박 강도</label>
           <ChipGroup options={DIFF_OPTIONS} value={difficulty} onChange={setDifficulty} />
         </div>
+
+        {/* 발표 시간 */}
         <div className="field">
           <label className="field__label">발표 시간 (분)</label>
           <RangeSlider id="duration" min={1} max={10} value={duration} onChange={setDuration} />
         </div>
+
+        {/* 돌발 질문 */}
         <div className="field">
           <label className="field__label">돌발 질문</label>
           <ChipGroup options={INTERRUPT_OPTIONS} value={interrupt} onChange={setInterrupt} />
         </div>
+
+        {/* 스크립트 */}
         <div className="field field--full">
           <label className="field__label">발표 스크립트 (선택)</label>
           <textarea
