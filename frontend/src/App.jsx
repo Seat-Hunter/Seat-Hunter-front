@@ -20,15 +20,14 @@ const INITIAL_SIM_STATE = {
   wpmHistory:    [],
   interruptLog:  [],
   sessionId:     null,
-  demoMode:      false,
 };
 
 export default function App() {
-  // 로그인 상태: localStorage에 토큰 있으면 이미 로그인된 것으로 간주
   const [token, setToken]       = useState(() => localStorage.getItem('token'));
   const [page, setPage]         = useState('setup');
   const [simState, setSimState] = useState(INITIAL_SIM_STATE);
   const [loading, setLoading]   = useState(false);
+  const [startError, setStartError] = useState(null);
 
   function handleLogin(data) {
     setToken(data.access_token);
@@ -44,17 +43,17 @@ export default function App() {
 
   async function handleStart(config) {
     setLoading(true);
-    let sessionId = null;
+    setStartError(null);
     try {
       const session = await createSession(config);
-      sessionId = session.session_id;
+      setSimState({ ...INITIAL_SIM_STATE, ...config, sessionId: session.session_id });
+      setPage('sim');
     } catch (e) {
-      console.warn('[API] 백엔드 연결 실패, 로컬 모드로 진행:', e.message);
+      console.error('[API] 세션 생성 실패:', e.message);
+      setStartError('서버에 연결할 수 없습니다. 백엔드가 실행 중인지 확인해주세요.');
     } finally {
       setLoading(false);
     }
-    setSimState({ ...INITIAL_SIM_STATE, ...config, sessionId });
-    setPage('sim');
   }
 
   function handleStop(runtimeData) {
@@ -67,7 +66,6 @@ export default function App() {
     setPage('setup');
   }
 
-  // 로그인 안 된 경우 → LoginPage 표시
   if (!token) {
     return <LoginPage onLogin={handleLogin} />;
   }
@@ -77,10 +75,24 @@ export default function App() {
       {loading && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', fontFamily: 'monospace', letterSpacing: '2px', zIndex: 999
+          display: 'flex', flexDirection: 'column', alignItems: 'center',
+          justifyContent: 'center', gap: '12px', zIndex: 999,
         }}>
-          세션 생성 중...
+          <div style={{ width: 36, height: 36, border: '2px solid #333',
+            borderTopColor: '#00c864', borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite' }} />
+          <span style={{ color: '#fff', fontFamily: 'monospace',
+            fontSize: 12, letterSpacing: '2px' }}>세션 생성 중...</span>
+        </div>
+      )}
+      {startError && page === 'setup' && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: '#1a0000', border: '1px solid #ff4d4d', color: '#ff4d4d',
+          padding: '12px 20px', borderRadius: 4, fontFamily: 'monospace',
+          fontSize: 12, zIndex: 999,
+        }}>
+          {startError}
         </div>
       )}
       {page === 'setup'  && <SetupPage  onStart={handleStart} onLogout={handleLogout} />}

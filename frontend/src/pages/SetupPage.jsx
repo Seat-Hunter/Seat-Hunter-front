@@ -78,16 +78,13 @@ export default function SetupPage({ onStart, onLogout }) {
   function handleTypeChange(val) {
     const cfg = TYPE_OPTIONS.find(t => t.val === val);
     setType(val);
-    if (cfg.fixedCount) {
-      setCount(cfg.maxCount);
-    } else {
-      setCount(prev => Math.min(prev, cfg.maxCount));
-    }
+    if (cfg.fixedCount) setCount(cfg.maxCount);
+    else setCount(prev => Math.min(prev, cfg.maxCount));
   }
 
-  function buildConfig(demoMode = false) {
+  function handleStart() {
     const cfg = TYPE_OPTIONS.find(t => t.val === type);
-    return {
+    onStart({
       type,
       audience,
       audienceCount: cfg.fixedCount ? cfg.maxCount : audienceCount,
@@ -95,24 +92,20 @@ export default function SetupPage({ onStart, onLogout }) {
       duration,
       interrupt: interrupt === 'on',
       script,
-      demoMode,
-    };
+    });
   }
 
   const currentTypeCfg = TYPE_OPTIONS.find(t => t.val === type);
 
   return (
     <div className="setup-page">
-      {/* 로고 + 로그아웃 */}
       <div className="logo-row">
         <div className="logo">
           PressurePoint
           <span className="logo__sub">// 스피치 압박 트레이너</span>
         </div>
         {onLogout && (
-          <button className="btn-logout" onClick={onLogout}>
-            로그아웃
-          </button>
+          <button className="btn-logout" onClick={onLogout}>로그아웃</button>
         )}
       </div>
 
@@ -133,7 +126,6 @@ export default function SetupPage({ onStart, onLogout }) {
             id="audienceCount"
             min={1}
             max={currentTypeCfg.maxCount}
-            step={1}
             value={audienceCount}
             onChange={setCount}
             disabled={currentTypeCfg.fixedCount}
@@ -166,14 +158,9 @@ export default function SetupPage({ onStart, onLogout }) {
         </div>
       </div>
 
-      <div className="btn-group">
-        <button className="btn-primary" onClick={() => onStart(buildConfig(false))}>
-          발표 시작
-        </button>
-        <button className="btn-demo" onClick={() => onStart(buildConfig(true))}>
-          데모 모드
-        </button>
-      </div>
+      <button className="btn-primary" onClick={handleStart}>
+        발표 시작
+      </button>
     </div>
   );
 }
