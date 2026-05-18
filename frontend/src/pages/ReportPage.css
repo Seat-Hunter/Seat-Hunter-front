@@ -1,216 +1,87 @@
-/* ── ReportPage.css ── */
-
 .report-page {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 60px 40px;
-  max-width: 860px;
-  margin: 0 auto;
-  width: 100%;
-  gap: 32px;
+  background: var(--bg);
 }
 
-/* ── Header ── */
+.report-inner {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 48px 40px 80px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 헤더 */
 .report-header {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
-  border-bottom: 1px solid var(--border);
   padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
 }
+.report-title { font-size: 26px; font-weight: 900; letter-spacing: -0.4px; color: var(--ink); margin-bottom: 4px; }
+.report-meta  { font-size: 12px; color: var(--ink3); }
+.score-badge  { font-family: var(--en); font-size: 56px; font-weight: 700; line-height: 1; text-align: right; }
+.score-label  { font-size: 11px; color: var(--ink3); text-align: right; margin-top: 2px; }
 
-.report-title {
-  font-family: var(--display);
-  font-size: 48px;
-  letter-spacing: 3px;
-  color: var(--text);
-  line-height: 1;
-}
-
-.report-meta {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 8px;
-}
-
-.score-badge {
-  font-family: var(--display);
-  font-size: 72px;
-  letter-spacing: 2px;
-  line-height: 1;
-  text-align: right;
-}
-
-.score-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 3px;
-  color: var(--muted);
-  text-align: right;
-}
-
-/* ── Metrics row ── */
-.metrics-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-
+/* 지표 카드 */
+.metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
 .metric-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 20px;
-  border-radius: 4px;
+  background: white; border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px;
 }
+.metric-num   { font-family: var(--en); font-size: 28px; font-weight: 700; line-height: 1; }
+.metric-label { font-size: 11px; color: var(--ink3); margin-top: 4px; }
 
-.metric-num {
-  font-family: var(--display);
-  font-size: 36px;
-  letter-spacing: 2px;
-  line-height: 1;
-}
-
-.metric-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--muted);
-  margin-top: 4px;
-}
-
-/* ── Feedback section ── */
+/* 피드백 섹션 */
 .feedback-section {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 28px;
+  background: white; border: 1px solid var(--border);
+  border-radius: 10px; padding: 22px 24px;
 }
-
 .feedback-section__title {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 3px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 16px;
+  font-size: 12px; font-weight: 700; color: var(--ink3);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px;
 }
+.feedback-text { font-size: 14px; line-height: 1.8; color: var(--ink2); }
+.feedback-text--loading { color: var(--ink3); animation: blink 1.2s infinite; }
 
-.feedback-text {
-  font-size: 14px;
-  line-height: 1.8;
-  color: #ccc;
-  white-space: pre-wrap;
-}
+/* 피드백 리스트 */
+.feedback-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.feedback-list li { font-size: 14px; line-height: 1.65; color: var(--ink2); padding-left: 16px; position: relative; }
+.feedback-list--strength  li::before { content: '▸'; color: var(--green); position: absolute; left: 0; }
+.feedback-list--weakness  li::before { content: '▸'; color: var(--red);   position: absolute; left: 0; }
+.feedback-list--improvement li::before { content: '▸'; color: var(--blue);  position: absolute; left: 0; }
 
-/* loading shimmer */
-.feedback-text--loading {
-  color: var(--muted);
-  animation: blink 1.2s ease-in-out infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
-}
-
-/* ── Feedback list ── */
-.feedback-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.feedback-list li {
-  font-size: 14px;
-  line-height: 1.7;
-  color: #ccc;
-  padding-left: 18px;
-  position: relative;
-}
-
-.feedback-list--strength li::before {
-  content: '▸';
-  color: var(--accent);
-  position: absolute;
-  left: 0;
-}
-
-.feedback-list--weakness li::before {
-  content: '▸';
-  color: var(--accent2);
-  position: absolute;
-  left: 0;
-}
-
-.feedback-list--improvement li::before {
-  content: '▸';
-  color: var(--accent3);
-  position: absolute;
-  left: 0;
-}
-
-/* ── Curriculum ── */
+/* 커리큘럼 */
 .feedback-section--curriculum {
-  border-color: var(--accent);
+  background: var(--blue-s);
+  border-color: rgba(37,99,235,0.2);
 }
+.curriculum-text { font-size: 14px; line-height: 1.65; color: var(--blue); font-weight: 500; }
 
-.curriculum-text {
-  font-size: 14px;
-  line-height: 1.7;
-  color: var(--accent);
-}
-
-/* ── QA list ── */
-.qa-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
+/* QA */
+.qa-list { display: flex; flex-direction: column; gap: 10px; }
 .qa-item {
-  background: var(--surface2);
-  border-left: 3px solid var(--accent2);
-  padding: 14px 16px;
-  border-radius: 0 4px 4px 0;
-  font-size: 13px;
-  line-height: 1.6;
+  border-left: 3px solid var(--red);
+  padding: 10px 14px;
+  border-radius: 0 7px 7px 0;
+  background: var(--red-s);
+  font-size: 13px; line-height: 1.6; color: var(--ink2);
 }
+.qa-item__label { font-size: 11px; font-weight: 600; color: var(--red); margin-bottom: 4px; }
+.qa-empty { font-size: 13px; color: var(--ink3); }
 
-.qa-item__label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--accent2);
-  margin-bottom: 6px;
-}
-
-.qa-empty {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--muted);
-}
-
-/* ── Restart button ── */
+/* 재시작 버튼 */
 .btn-restart {
-  background: transparent;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  padding: 14px 32px;
-  font-family: var(--display);
-  font-size: 20px;
-  letter-spacing: 3px;
-  cursor: pointer;
-  border-radius: 2px;
-  transition: all 0.2s;
+  background: white; color: var(--ink);
+  border: 1px solid var(--border2);
+  padding: 10px 22px; border-radius: 7px;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: var(--sans); transition: all 0.1s;
   align-self: flex-start;
 }
-
-.btn-restart:hover {
-  background: var(--accent);
-  color: #000;
-}
+.btn-restart:hover { border-color: var(--blue); color: var(--blue); }

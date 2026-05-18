@@ -3,6 +3,14 @@ import './SimPage.css';
 import AudienceSimulator from './AudienceSimulator';
 import { startSession, endSession, connectSessionWS } from '../services/claudeApi';
 
+const LOGO = (
+  <svg viewBox="0 0 16 16" fill="none">
+    <rect x="3" y="7" width="10" height="7" rx="2" fill="white" opacity="0.9"/>
+    <path d="M6 7V5a2 2 0 0 1 4 0v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+    <circle cx="8" cy="10.5" r="1" fill="#2563eb"/>
+  </svg>
+);
+
 const FILLERS = ['어', '음', '그', '저', '뭐', '그냥', '좀', '아', '에', '이'];
 
 function computeMoods(mood, count) {
@@ -24,7 +32,7 @@ const PRESENTATION_CONFIG = {
 };
 const DEFAULT_CONFIG = { roomType: 'classroom', audienceType: 'general', memberCount: 8 };
 
-export default function SimPage({ simState, onStop }) {
+export default function SimPage({ simState, onStop, onCancel }) {
   const { type, audience, audienceCount, duration, sessionId } = simState;
 
   const config       = PRESENTATION_CONFIG[type] ?? DEFAULT_CONFIG;
@@ -35,6 +43,7 @@ export default function SimPage({ simState, onStop }) {
     ? config.memberCount
     : Math.min(audienceCount ?? config.memberCount, config.memberCount);
 
+  // ── UI state
   const [elapsed, setElapsed]               = useState(0);
   const [wpm, setWpm]                       = useState(0);
   const [fillerCount, setFillerCount]       = useState(0);
@@ -46,8 +55,12 @@ export default function SimPage({ simState, onStop }) {
   const [bubbleText, setBubbleText]         = useState('');
   const [bubbleVisible, setBubbleVisible]   = useState(false);
   const [listenLabel, setListenLabel]       = useState('마이크 연결 중...');
+  const [sttActive, setSttActive]           = useState(false);
   const [liveFeedback, setLiveFeedback]     = useState(null);
+  const [reportToast, setReportToast]       = useState(null);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
 
+  // ── refs
   const startTimeRef       = useRef(Date.now());
   const transcriptRef      = useRef('');
   const wordCountRef       = useRef(0);
@@ -55,6 +68,8 @@ export default function SimPage({ simState, onStop }) {
   const wpmHistoryRef      = useRef([]);
   const interruptLogRef    = useRef([]);
   const recognitionRef     = useRef(null);
+  const mediaRecorderRef   = useRef(null);
+  const micStreamRef       = useRef(null);
   const timerIntervalRef   = useRef(null);
   const transcriptBoxRef   = useRef(null);
   const interruptLogBoxRef = useRef(null);
@@ -64,15 +79,17 @@ export default function SimPage({ simState, onStop }) {
   const memberCountRef     = useRef(memberCount);
   const totalSecRef        = useRef(totalSec);
   const onStopRef          = useRef(onStop);
+  const onCancelRef        = useRef(onCancel);
   onStopRef.current        = onStop;
+  onCancelRef.current      = onCancel;
 
+  // ── 텍스트 처리
   function processText(text) {
     transcriptRef.current += text + ' ';
     const words = text.trim().split(/\s+/);
     wordCountRef.current += words.length;
     words.forEach(w => {
-      if (FILLERS.includes(w.replace(/[^가-힣a-z]/gi, '')))
-        fillerCountRef.current++;
+      if (FILLERS.includes(w.replace(/[^가-힣a-z]/gi, ''))) fillerCountRef.current++;
     });
     setTranscriptWords(
       transcriptRef.current.split(/\s+/).slice(-60).map(w => ({
@@ -87,6 +104,7 @@ export default function SimPage({ simState, onStop }) {
     setWpm(currentWpm);
   }
 
+  // ── 인터럽트 표시
   function showInterrupt(question) {
     interruptLogRef.current.push(question);
     setInterruptCount(c => c + 1);
@@ -97,15 +115,19 @@ export default function SimPage({ simState, onStop }) {
     setTimeout(() => setBubbleVisible(false), 12000);
   }
 
+  // ── 발표 종료
   const stopSimRef = useRef(null);
   stopSimRef.current = function stopSim() {
     if (stoppedRef.current) return;
     stoppedRef.current = true;
     clearInterval(timerIntervalRef.current);
     if (recognitionRef.current) recognitionRef.current.stop();
-    if (wsRef.current)          wsRef.current.close();
-    if (audioRef.current)       { audioRef.current.pause(); audioRef.current = null; }
-    if (sessionId)              endSession(sessionId).catch(console.error);
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive')
+      mediaRecorderRef.current.stop();
+    if (micStreamRef.current) micStreamRef.current.getTracks().forEach(t => t.stop());
+    if (wsRef.current)    wsRef.current.close();
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    if (sessionId)        endSession(sessionId).catch(console.error);
     onStopRef.current({
       elapsed:      Math.floor((Date.now() - startTimeRef.current) / 1000),
       transcript:   transcriptRef.current,
@@ -117,9 +139,29 @@ export default function SimPage({ simState, onStop }) {
     });
   };
 
+  // ── 발표 취소 (기록 없이)
+  const cancelSimRef = useRef(null);
+  cancelSimRef.current = function cancelSim() {
+    if (stoppedRef.current) return;
+    stoppedRef.current = true;
+    clearInterval(timerIntervalRef.current);
+    if (recognitionRef.current) recognitionRef.current.stop();
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive')
+      mediaRecorderRef.current.stop();
+    if (micStreamRef.current) micStreamRef.current.getTracks().forEach(t => t.stop());
+    if (wsRef.current)    wsRef.current.close();
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    onCancelRef.current?.();
+  };
+
+  // ── WebSocket 메시지 처리
   function handleWsMessage(msg) {
     if (stoppedRef.current) return;
     switch (msg.type) {
+      case 'report_saved':
+        setReportToast(`리포트가 저장되었습니다 · 점수 ${Math.round(msg.overall_score ?? 0)}점`);
+        setTimeout(() => setReportToast(null), 4000);
+        break;
       case 'live_metrics':
         setWpm(msg.wpm ?? 0);
         setFillerCount(msg.filler_count ?? 0);
@@ -131,7 +173,7 @@ export default function SimPage({ simState, onStop }) {
       case 'audience_reaction': {
         const moodMap = {
           nodding: 'nodding', cold: 'cold', interested: 'interested',
-          confused: 'cold',   applause: 'applause', raising: 'question',
+          confused: 'cold', applause: 'applause', raising: 'question',
         };
         const mood = moodMap[msg.reaction];
         if (mood) setAudienceMoods(computeMoods(mood, memberCountRef.current));
@@ -146,17 +188,11 @@ export default function SimPage({ simState, onStop }) {
           audioRef.current = audio;
           audio.onended = () => {
             audioRef.current = null;
-            if (wsRef.current?.readyState === WebSocket.OPEN) {
-              wsRef.current.send(JSON.stringify({
-                type: 'tts_finished',
-                question_id: msg.question_id ?? 'q',
-              }));
-            }
+            if (wsRef.current?.readyState === WebSocket.OPEN)
+              wsRef.current.send(JSON.stringify({ type: 'tts_finished', question_id: msg.question_id ?? 'q' }));
           };
           audio.play().catch(console.error);
-        } catch (e) {
-          console.error('[TTS] 재생 오류:', e);
-        }
+        } catch (e) { console.error('[TTS]', e); }
         break;
       }
       case 'stop_tts':
@@ -168,30 +204,44 @@ export default function SimPage({ simState, onStop }) {
     }
   }
 
+  // ── 마운트 시 초기화
   useEffect(() => {
     startTimeRef.current = Date.now();
 
     timerIntervalRef.current = setInterval(() => {
-      const elapsedSec = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      setElapsed(elapsedSec);
-      if (elapsedSec >= totalSecRef.current) stopSimRef.current();
+      const s = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      setElapsed(s);
+      if (s >= totalSecRef.current) stopSimRef.current();
     }, 1000);
 
     // WebSocket 연결
     startSession(sessionId)
-      .then(() => {
-        const ws = connectSessionWS(sessionId, handleWsMessage);
-        wsRef.current = ws;
-      })
+      .then(() => { wsRef.current = connectSessionWS(sessionId, handleWsMessage); })
       .catch(console.error);
 
-    // Web Speech API STT
+    // MediaRecorder → Deepgram audio_chunk 전송
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(stream => {
+        micStreamRef.current = stream;
+        const recorder = new MediaRecorder(stream);
+        mediaRecorderRef.current = recorder;
+        recorder.ondataavailable = async (e) => {
+          if (e.data.size === 0) return;
+          if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+          if (stoppedRef.current) return;
+          const buf = await e.data.arrayBuffer();
+          const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
+          wsRef.current.send(JSON.stringify({ type: 'audio_chunk', timestamp_ms: Date.now(), audio_base64: b64 }));
+        };
+        recorder.start(250);
+      })
+      .catch(err => console.warn('[MediaRecorder]', err));
+
+    // Web Speech API (interim 자막용)
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SR) {
       const r = new SR();
-      r.lang           = 'ko-KR';
-      r.continuous     = true;
-      r.interimResults = true;
+      r.lang = 'ko-KR'; r.continuous = true; r.interimResults = true;
       recognitionRef.current = r;
       r.onresult = (e) => {
         let final = '', interim = '';
@@ -202,22 +252,16 @@ export default function SimPage({ simState, onStop }) {
         if (final) {
           setInterimText('');
           processText(final);
-          if (wsRef.current?.readyState === WebSocket.OPEN) {
-            wsRef.current.send(JSON.stringify({
-              type: 'partial_transcript', text: final.trim(),
-              is_final: true, timestamp_ms: Date.now(),
-            }));
-          }
+          if (wsRef.current?.readyState === WebSocket.OPEN)
+            wsRef.current.send(JSON.stringify({ type: 'partial_transcript', text: final.trim(), is_final: true, timestamp_ms: Date.now() }));
         }
         if (interim) setInterimText(interim);
       };
-      r.onerror = (err) => {
-        console.warn('[STT] 오류:', err.error);
-        setListenLabel('마이크 오류');
-      };
-      r.onend = () => { if (!stoppedRef.current) r.start(); };
+      r.onerror = (err) => { console.warn('[STT]', err.error); setListenLabel('마이크 오류'); setSttActive(false); };
+      r.onend   = () => { if (!stoppedRef.current) r.start(); };
       r.start();
-      setListenLabel('마이크 듣는 중...');
+      setListenLabel('음성 인식 중...');
+      setSttActive(true);
     } else {
       setListenLabel('STT 미지원 브라우저');
     }
@@ -226,6 +270,9 @@ export default function SimPage({ simState, onStop }) {
       stoppedRef.current = true;
       clearInterval(timerIntervalRef.current);
       if (recognitionRef.current) recognitionRef.current.stop();
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive')
+        mediaRecorderRef.current.stop();
+      if (micStreamRef.current) micStreamRef.current.getTracks().forEach(t => t.stop());
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -239,92 +286,197 @@ export default function SimPage({ simState, onStop }) {
       interruptLogBoxRef.current.scrollTop = interruptLogBoxRef.current.scrollHeight;
   }, [interruptLog]);
 
+  // ── 파생값
   const remaining = totalSec - elapsed;
   const timerPct  = Math.max(0, (remaining / totalSec) * 100);
   const isUrgent  = remaining < 30;
-  const mm        = String(Math.floor(elapsed / 60));
+  const mm        = String(Math.floor(elapsed / 60)).padStart(2, '0');
   const ss        = String(elapsed % 60).padStart(2, '0');
+  const remMm     = String(Math.floor(Math.max(0, remaining) / 60)).padStart(2, '0');
+  const remSs     = String(Math.max(0, remaining) % 60).padStart(2, '0');
   const wpmPct    = Math.min(wpm / 200, 1) * 100;
-  const wpmColor  = wpm < 80 || wpm > 160 ? 'stat-val--red' : 'stat-val--green';
+  const wpmColor  = wpm === 0 ? '' : wpm < 80 || wpm > 160 ? 'stat-val--red' : 'stat-val--green';
 
   return (
     <div className="sim-page">
-      <div className={`sim-stage ${roomType}`}>
-        <div className={`interrupt-bubble${bubbleVisible ? ' interrupt-bubble--show' : ''}`}>
-          <div className="interrupt-bubble__from">청중 질문</div>
-          {bubbleText}
+      {/* NAV */}
+      <nav className="nav">
+        <div className="nav-logo">
+          <div className="logo-icon">{LOGO}</div>
+          <span className="logo-text">SpeechLab</span>
         </div>
-        <AudienceSimulator
-          roomType={roomType}
-          audienceType={audienceType}
-          count={memberCount}
-          memberMoods={audienceMoods}
-        />
-      </div>
+        <div className="nav-right">
+          <div className="nav-rec">
+            <span className="nav-rec-dot" />
+            REC {mm}:{ss}
+          </div>
+        </div>
+      </nav>
 
-      <div className="hud">
-        <div className="hud__title">// 실시간 분석</div>
-        <div className="listening-indicator">
-          <div className="dot dot--active" />
-          <span>{listenLabel}</span>
+      <div className="sim-body">
+        {/* 스테이지 */}
+        <div className={`sim-stage ${roomType}`}>
+          <div className={`interrupt-bubble${bubbleVisible ? ' interrupt-bubble--show' : ''}`}>
+            <div className="interrupt-bubble__from">돌발 질문</div>
+            <div style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.5, fontWeight: 500 }}>{bubbleText}</div>
+          </div>
+          <AudienceSimulator
+            roomType={roomType}
+            audienceType={audienceType}
+            count={memberCount}
+            memberMoods={audienceMoods}
+          />
         </div>
-        <div>
-          <div className="timer-bar">
-            <div
-              className={`timer-bar__fill${isUrgent ? ' timer-bar__fill--urgent' : ''}`}
-              style={{ width: `${timerPct}%` }}
-            />
+
+        {/* HUD */}
+        <div className="hud">
+          {/* 타이머 */}
+          <div className="hud-section">
+            <div className="hud__title">진행 시간</div>
+            <div className="timer-bar">
+              <div className={`timer-bar__fill${isUrgent ? ' timer-bar__fill--urgent' : ''}`}
+                style={{ width: `${timerPct}%` }} />
+            </div>
+            <div className="timer-meta">
+              <span className="timer-meta__text">남은 시간 {remMm}:{remSs}</span>
+              <span className="timer-meta__text">{mm}:{ss} 경과</span>
+            </div>
           </div>
-          <div className="timer-meta">
-            <span className="timer-meta__text">경과</span>
-            <span className="timer-meta__text">{mm}:{ss}</span>
+
+          {/* STT */}
+          <div className="hud-section">
+            <div className="listening-indicator">
+              <div className={`dot${sttActive ? ' dot--active' : ''}`} />
+              <span style={{ fontSize: 12, color: 'var(--ink2)' }}>{listenLabel}</span>
+            </div>
+            {liveFeedback && <div className="live-feedback" style={{ marginTop: 10 }}>{liveFeedback}</div>}
           </div>
-        </div>
-        <div className="stat-block">
-          <div className={`stat-val ${wpmColor}`}>{wpm}</div>
-          <div className="stat-label">WPM // 말하기 속도</div>
-          <div className="wpm-bar-wrap">
-            <div className="wpm-bar" style={{ width: `${wpmPct}%` }} />
+
+          {/* WPM */}
+          <div className="hud-section">
+            <div className="hud__title">실시간 지표</div>
+            <div className="stat-block">
+              <div className={`stat-val ${wpmColor}`}>{wpm}</div>
+              <div className="stat-label">WPM · 말하기 속도</div>
+              <div className="wpm-bar-wrap">
+                <div className="wpm-bar" style={{ width: `${wpmPct}%` }} />
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="stat-block__grid">
-          <div className="stat-block">
-            <div className="stat-val stat-val--red">{fillerCount}</div>
-            <div className="stat-label">필러 단어</div>
+
+          {/* 필러·인터럽트 */}
+          <div className="hud-section">
+            <div className="stat-block__grid">
+              <div className="stat-block">
+                <div className="stat-val stat-val--red">{fillerCount}</div>
+                <div className="stat-label">필러 단어</div>
+              </div>
+              <div className="stat-block">
+                <div className="stat-val stat-val--blue">{interruptCount}</div>
+                <div className="stat-label">인터럽트</div>
+              </div>
+            </div>
           </div>
-          <div className="stat-block">
-            <div className="stat-val stat-val--blue">{interruptCount}</div>
-            <div className="stat-label">인터럽트</div>
+
+          {/* 발화 텍스트 */}
+          <div className="hud-section">
+            <div className="hud__title">발화 텍스트</div>
+            <div className="transcript-box" ref={transcriptBoxRef}>
+              {transcriptWords.length === 0 && !interimText
+                ? <span>대기 중...</span>
+                : <>
+                    {transcriptWords.map((w, i) => (
+                      <span key={i} className={w.isFiller ? 'transcript-box__filler' : 'transcript-box__word'}>{w.text} </span>
+                    ))}
+                    {interimText && <span className="transcript-box__interim">{interimText}</span>}
+                  </>
+              }
+            </div>
           </div>
-        </div>
-        {liveFeedback && <div className="live-feedback">{liveFeedback}</div>}
-        <div>
-          <div className="hud__title">// 발화 텍스트</div>
-          <div className="transcript-box" ref={transcriptBoxRef}>
-            {transcriptWords.length === 0 && !interimText ? (
-              <span>대기 중...</span>
-            ) : (
-              <>
-                {transcriptWords.map((w, i) => (
-                  <span key={i} className={w.isFiller ? 'transcript-box__filler' : 'transcript-box__word'}>
-                    {w.text}{' '}
-                  </span>
+
+          {/* 인터럽트 로그 */}
+          {interruptLog.length > 0 && (
+            <div className="hud-section">
+              <div className="hud__title">질문 기록</div>
+              <div className="interrupt-log" ref={interruptLogBoxRef}>
+                {interruptLog.map((q, i) => (
+                  <div key={i} className="log-item">
+                    <span style={{ fontWeight: 600, color: 'var(--red)' }}>Q{i + 1} </span>{q}
+                  </div>
                 ))}
-                {interimText && <span className="transcript-box__interim">{interimText}</span>}
-              </>
+              </div>
+            </div>
+          )}
+
+          {/* 버튼 */}
+          <div className="hud-section" style={{ marginTop: 'auto' }}>
+            <button className="btn-stop" onClick={() => stopSimRef.current()}>발표 종료</button>
+            {onCancel && (
+              <button
+                onClick={() => setShowCancelConfirm(true)}
+                style={{
+                  width: '100%', marginTop: 8, padding: '9px', borderRadius: 6,
+                  background: 'transparent', border: '1px solid var(--border2)',
+                  color: 'var(--ink3)', fontSize: 12, cursor: 'pointer',
+                  fontFamily: 'var(--sans)',
+                }}
+              >
+                발표 취소 (기록 없음)
+              </button>
             )}
           </div>
         </div>
-        <div>
-          <div className="hud__title" style={{ marginBottom: '8px' }}>// 인터럽트 기록</div>
-          <div className="interrupt-log" ref={interruptLogBoxRef}>
-            {interruptLog.map((q, i) => (
-              <div key={i} className="log-item">Q{i + 1}: {q}</div>
-            ))}
+      </div>
+
+      {/* 리포트 저장 완료 토스트 */}
+      {reportToast && (
+        <div style={{
+          position: 'fixed', bottom: 28, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--green-s)', border: '1px solid rgba(5,150,105,0.25)',
+          color: 'var(--green)', padding: '12px 20px', borderRadius: 8,
+          fontSize: 13, fontWeight: 600, zIndex: 999,
+          boxShadow: '0 4px 16px rgba(5,150,105,0.15)',
+          display: 'flex', alignItems: 'center', gap: 8,
+        }}>
+          ✓ {reportToast}
+        </div>
+      )}
+
+      {/* 취소 확인 모달 */}
+      {showCancelConfirm && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999,
+        }}>
+          <div style={{
+            background: 'white', borderRadius: 12, padding: '28px 32px',
+            width: 320, boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
+          }}>
+            <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>발표를 취소할까요?</div>
+            <div style={{ fontSize: 13, color: 'var(--ink2)', marginBottom: 24, lineHeight: 1.6 }}>
+              지금까지의 기록이 저장되지 않습니다.<br />설정 화면으로 돌아갑니다.
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setShowCancelConfirm(false)}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 7, fontSize: 13,
+                  border: '1px solid var(--border2)', background: 'white',
+                  cursor: 'pointer', fontFamily: 'var(--sans)', fontWeight: 500,
+                }}
+              >계속 발표</button>
+              <button
+                onClick={() => cancelSimRef.current?.()}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 7, fontSize: 13,
+                  border: 'none', background: 'var(--red)', color: 'white',
+                  cursor: 'pointer', fontFamily: 'var(--sans)', fontWeight: 700,
+                }}
+              >취소하기</button>
+            </div>
           </div>
         </div>
-        <button className="btn-stop" onClick={() => stopSimRef.current()}>발표 종료</button>
-      </div>
+      )}
     </div>
   );
 }

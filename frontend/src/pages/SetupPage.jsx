@@ -1,27 +1,32 @@
 import { useState } from 'react';
 import './SetupPage.css';
 
+const LOGO = (
+  <svg viewBox="0 0 16 16" fill="none">
+    <rect x="3" y="7" width="10" height="7" rx="2" fill="white" opacity="0.9"/>
+    <path d="M6 7V5a2 2 0 0 1 4 0v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
+    <circle cx="8" cy="10.5" r="1" fill="#2563eb"/>
+  </svg>
+);
+
 const TYPE_OPTIONS = [
   { val: 'interview', label: '면접',      maxCount: 4,  fixedCount: true  },
   { val: 'academic',  label: '학술발표',  maxCount: 20, fixedCount: false },
   { val: 'school',    label: '학교 발표', maxCount: 18, fixedCount: false },
   { val: 'meeting',   label: '회의',      maxCount: 5,  fixedCount: true  },
 ];
-
 const AUDIENCE_OPTIONS = [
   { val: 'professor', label: '교수' },
   { val: 'investor',  label: '투자자' },
   { val: 'boss',      label: '상사' },
   { val: 'general',   label: '일반 청중' },
 ];
-
 const DIFF_OPTIONS = [
   { val: 'easy',   label: '약함' },
   { val: 'medium', label: '보통' },
   { val: 'hard',   label: '강함' },
   { val: 'brutal', label: '극한' },
 ];
-
 const INTERRUPT_OPTIONS = [
   { val: 'on',  label: '켜기' },
   { val: 'off', label: '끄기' },
@@ -31,12 +36,9 @@ function ChipGroup({ options, value, onChange }) {
   return (
     <div className="chip-group">
       {options.map(opt => (
-        <button
-          key={opt.val}
+        <button key={opt.val}
           className={`chip${value === opt.val ? ' chip--active' : ''}`}
-          onClick={() => onChange(opt.val)}
-          type="button"
-        >
+          onClick={() => onChange(opt.val)} type="button">
           {opt.label}
         </button>
       ))}
@@ -47,18 +49,11 @@ function ChipGroup({ options, value, onChange }) {
 function RangeSlider({ id, min, max, step = 1, value, onChange, disabled = false }) {
   return (
     <div className="range-row">
-      <input
-        id={id}
-        type="range"
-        className="range-row__input"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
+      <input id={id} type="range" className="range-row__input"
+        min={min} max={max} step={step} value={value}
         onChange={e => onChange(Number(e.target.value))}
         disabled={disabled}
-        style={{ opacity: disabled ? 0.4 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }}
-      />
+        style={{ opacity: disabled ? 0.4 : 1, cursor: disabled ? 'not-allowed' : 'pointer' }} />
       <span className="range-row__val">
         {disabled ? `${value}명 (고정)` : value}
       </span>
@@ -66,101 +61,120 @@ function RangeSlider({ id, min, max, step = 1, value, onChange, disabled = false
   );
 }
 
-export default function SetupPage({ onStart, onLogout }) {
-  const [type, setType]             = useState('interview');
-  const [audience, setAudience]     = useState('boss');
+export default function SetupPage({ onStart, onLogout, onHome, onHistory, preset }) {
+  const [type, setType]             = useState(preset?.type       ?? 'interview');
+  const [audience, setAudience]     = useState(preset?.audience   ?? 'boss');
   const [audienceCount, setCount]   = useState(4);
-  const [difficulty, setDifficulty] = useState('medium');
+  const [difficulty, setDifficulty] = useState(preset?.difficulty ?? 'medium');
   const [duration, setDuration]     = useState(3);
-  const [interrupt, setInterrupt]   = useState('on');
+  const [interrupt, setInterrupt]   = useState(preset?.interrupt !== undefined ? (preset.interrupt ? 'on' : 'off') : 'on');
   const [script, setScript]         = useState('');
 
   function handleTypeChange(val) {
-    const cfg = TYPE_OPTIONS.find(t => t.val === val);
+    const cfg = TYPE_OPTIONS.find(t => t.val === val) ?? TYPE_OPTIONS[0];
     setType(val);
     if (cfg.fixedCount) setCount(cfg.maxCount);
     else setCount(prev => Math.min(prev, cfg.maxCount));
   }
 
   function handleStart() {
-    const cfg = TYPE_OPTIONS.find(t => t.val === type);
+    const cfg = TYPE_OPTIONS.find(t => t.val === type) ?? TYPE_OPTIONS[0];
     onStart({
-      type,
-      audience,
+      type, audience,
       audienceCount: cfg.fixedCount ? cfg.maxCount : audienceCount,
-      difficulty,
-      duration,
+      difficulty, duration,
       interrupt: interrupt === 'on',
       script,
     });
   }
 
-  const currentTypeCfg = TYPE_OPTIONS.find(t => t.val === type);
+  const currentTypeCfg = TYPE_OPTIONS.find(t => t.val === type) ?? TYPE_OPTIONS[0];
 
   return (
     <div className="setup-page">
-      <div className="logo-row">
-        <div className="logo">
-          PressurePoint
-          <span className="logo__sub">// 스피치 압박 트레이너</span>
+      <nav className="nav">
+        <div className="nav-logo" onClick={onHome} style={{ cursor: 'pointer' }}>
+          <div className="logo-icon">{LOGO}</div>
+          <span className="logo-text">SpeechLab</span>
         </div>
-        {onLogout && (
-          <button className="btn-logout" onClick={onLogout}>로그아웃</button>
-        )}
-      </div>
+        <div className="nav-links">
+          <button className="nav-a" onClick={onHome}>홈</button>
+          <button className="nav-a on">발표 설정</button>
+        </div>
+        <div className="nav-right">
+          {onHistory && <button className="btn-line" onClick={onHistory}>히스토리</button>}
+          {onLogout  && <button className="btn-line" onClick={onLogout}>로그아웃</button>}
+        </div>
+      </nav>
 
-      <div className="setup-grid">
-        <div className="field">
-          <label className="field__label">발표 유형</label>
+      <div className="setup-wrap">
+        <div className="logo-row">
+          <div>
+            <div className="logo">발표 설정</div>
+            <span className="logo__sub">환경과 조건을 설정하면 맞춤 AI 청중이 생성됩니다</span>
+          </div>
+        </div>
+
+        <div className="setup-section">
+          <span className="ss-label">발표 유형</span>
           <ChipGroup options={TYPE_OPTIONS} value={type} onChange={handleTypeChange} />
         </div>
 
-        <div className="field">
-          <label className="field__label">청자 유형</label>
+        <div className="setup-section">
+          <span className="ss-label">청자 유형</span>
           <ChipGroup options={AUDIENCE_OPTIONS} value={audience} onChange={setAudience} />
         </div>
 
-        <div className="field">
-          <label className="field__label">청중 수</label>
-          <RangeSlider
-            id="audienceCount"
-            min={1}
-            max={currentTypeCfg.maxCount}
-            value={audienceCount}
-            onChange={setCount}
-            disabled={currentTypeCfg.fixedCount}
-          />
+        <div className="setup-section">
+          <span className="ss-label">청중 수</span>
+          <div className="range-block">
+            <div className="range-header">
+              <span className="range-title">{currentTypeCfg.fixedCount ? '고정 인원' : '청중 인원 선택'}</span>
+              <span className="range-value">{audienceCount}명</span>
+            </div>
+            <RangeSlider id="audienceCount" min={1} max={currentTypeCfg.maxCount}
+              value={audienceCount} onChange={setCount} disabled={currentTypeCfg.fixedCount} />
+          </div>
         </div>
 
-        <div className="field">
-          <label className="field__label">압박 강도</label>
+        <div className="setup-section">
+          <span className="ss-label">압박 강도</span>
           <ChipGroup options={DIFF_OPTIONS} value={difficulty} onChange={setDifficulty} />
         </div>
 
-        <div className="field">
-          <label className="field__label">발표 시간 (분)</label>
-          <RangeSlider id="duration" min={1} max={10} value={duration} onChange={setDuration} />
+        <div className="setup-section">
+          <span className="ss-label">발표 시간 (분)</span>
+          <div className="range-block">
+            <div className="range-header">
+              <span className="range-title">발표 총 시간</span>
+              <span className="range-value">{duration}분</span>
+            </div>
+            <RangeSlider id="duration" min={1} max={10} value={duration} onChange={setDuration} />
+          </div>
         </div>
 
-        <div className="field">
-          <label className="field__label">돌발 질문</label>
+        <div className="setup-section">
+          <span className="ss-label">돌발 질문</span>
           <ChipGroup options={INTERRUPT_OPTIONS} value={interrupt} onChange={setInterrupt} />
         </div>
 
-        <div className="field field--full">
-          <label className="field__label">발표 스크립트 (선택)</label>
-          <textarea
-            className="setup-textarea"
-            value={script}
+        <div className="setup-section">
+          <span className="ss-label">
+            발표 스크립트 <span style={{ fontWeight: 400, color: 'var(--ink3)' }}>(선택)</span>
+          </span>
+          <textarea className="setup-textarea" value={script}
             onChange={e => setScript(e.target.value)}
-            placeholder="발표 내용을 붙여넣으세요. 없으면 자유 발표로 진행됩니다."
-          />
+            placeholder="발표 내용을 붙여넣으세요. 없으면 자유 발표로 진행됩니다." />
+        </div>
+
+        <div className="setup-footer">
+          {onHome && <button className="btn-line" onClick={onHome} style={{ marginRight: 'auto' }}>← 홈으로</button>}
+          <button className="btn-primary" onClick={handleStart}>
+            <svg width="11" height="11" fill="white" viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg>
+            발표 시작
+          </button>
         </div>
       </div>
-
-      <button className="btn-primary" onClick={handleStart}>
-        발표 시작
-      </button>
     </div>
   );
 }
