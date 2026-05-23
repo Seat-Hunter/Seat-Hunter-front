@@ -80,6 +80,9 @@ export default function SimPage({ simState, onStop, onCancel }) {
   const totalSecRef        = useRef(totalSec);
   const onStopRef          = useRef(onStop);
   const onCancelRef        = useRef(onCancel);
+  const lastInterimRef          = useRef('');
+  const lastInterimWordCountRef = useRef(0);
+  const wordTimestampsRef       = useRef([]);
   onStopRef.current        = onStop;
   onCancelRef.current      = onCancel;
 
@@ -88,6 +91,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
     transcriptRef.current += text + ' ';
     const words = text.trim().split(/\s+/);
     wordCountRef.current += words.length;
+    wordTimestampsRef.current.push({ ts: Date.now(), count: words.length });
     words.forEach(w => {
       if (FILLERS.includes(w.replace(/[^가-힣a-z]/gi, ''))) fillerCountRef.current++;
     });
@@ -98,10 +102,6 @@ export default function SimPage({ simState, onStop, onCancel }) {
       }))
     );
     setFillerCount(fillerCountRef.current);
-    const elapsedMin = (Date.now() - startTimeRef.current) / 60000;
-    const currentWpm = elapsedMin > 0 ? Math.round(wordCountRef.current / elapsedMin) : 0;
-    wpmHistoryRef.current.push(currentWpm);
-    setWpm(currentWpm);
   }
 
   // ── 인터럽트 표시
@@ -163,7 +163,6 @@ export default function SimPage({ simState, onStop, onCancel }) {
         setTimeout(() => setReportToast(null), 4000);
         break;
       case 'live_metrics':
-        setWpm(msg.wpm ?? 0);
         setFillerCount(msg.filler_count ?? 0);
         break;
       case 'live_feedback':
@@ -212,6 +211,15 @@ export default function SimPage({ simState, onStop, onCancel }) {
       const s = Math.floor((Date.now() - startTimeRef.current) / 1000);
       setElapsed(s);
       if (s >= totalSecRef.current) stopSimRef.current();
+      if (s % 3 === 0 && s > 0) {
+        const WINDOW_MS = 10000;
+        const now = Date.now();
+        wordTimestampsRef.current = wordTimestampsRef.current.filter(e => e.ts >= now - WINDOW_MS);
+        const windowWords = wordTimestampsRef.current.reduce((sum, e) => sum + e.count, 0);
+        const raw = Math.round(windowWords / (WINDOW_MS / 60000));
+        setWpm(raw);
+        wpmHistoryRef.current.push(raw);
+      }
     }, 1000);
 
     // WebSocket 연결
@@ -249,13 +257,30 @@ export default function SimPage({ simState, onStop, onCancel }) {
           if (e.results[i].isFinal) final += e.results[i][0].transcript + ' ';
           else interim += e.results[i][0].transcript;
         }
+        if (interim) {
+          const words = interim.trim().split(/\s+/).filter(Boolean);
+          const processed = lastInterimWordCountRef.current;
+          // 마지막 단어는 아직 입력 중일 수 있으므로 그 앞까지만 확정
+          if (words.length - 1 > processed) {
+            processText(words.slice(processed, words.length - 1).join(' '));
+            lastInterimWordCountRef.current = words.length - 1;
+          }
+          // 현재 입력 중인 단어만 회색으로 표시
+          setInterimText(words[words.length - 1] || '');
+          lastInterimRef.current = interim;
+        }
         if (final) {
+          const finalWords = final.trim().split(/\s+/).filter(Boolean);
+          const processed = lastInterimWordCountRef.current;
+          if (finalWords.length > processed) {
+            processText(finalWords.slice(processed).join(' '));
+          }
           setInterimText('');
-          processText(final);
+          lastInterimRef.current = '';
+          lastInterimWordCountRef.current = 0;
           if (wsRef.current?.readyState === WebSocket.OPEN)
             wsRef.current.send(JSON.stringify({ type: 'partial_transcript', text: final.trim(), is_final: true, timestamp_ms: Date.now() }));
         }
-        if (interim) setInterimText(interim);
       };
       r.onerror = (err) => { console.warn('[STT]', err.error); setListenLabel('마이크 오류'); setSttActive(false); };
       r.onend   = () => { if (!stoppedRef.current) r.start(); };
