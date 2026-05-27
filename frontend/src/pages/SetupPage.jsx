@@ -32,16 +32,19 @@ const INTERRUPT_OPTIONS = [
   { val: 'off', label: '끄기' },
 ];
 
-function ChipGroup({ options, value, onChange }) {
+function ChipGroup({ options, value, onChange, error }) {
   return (
-    <div className="chip-group">
-      {options.map(opt => (
-        <button key={opt.val}
-          className={`chip${value === opt.val ? ' chip--active' : ''}`}
-          onClick={() => onChange(opt.val)} type="button">
-          {opt.label}
-        </button>
-      ))}
+    <div>
+      <div className="chip-group">
+        {options.map(opt => (
+          <button key={opt.val}
+            className={`chip${value === opt.val ? ' chip--active' : ''}${error ? ' chip--error' : ''}`}
+            onClick={() => onChange(opt.val)} type="button">
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      {error && <div className="field-error">{error}</div>}
     </div>
   );
 }
@@ -62,13 +65,23 @@ function RangeSlider({ id, min, max, step = 1, value, onChange, disabled = false
 }
 
 export default function SetupPage({ onStart, onLogout, onHome, onHistory, preset }) {
-  const [type, setType]             = useState(preset?.type       ?? 'interview');
-  const [audience, setAudience]     = useState(preset?.audience   ?? 'boss');
-  const [audienceCount, setCount]   = useState(4);
-  const [difficulty, setDifficulty] = useState(preset?.difficulty ?? 'medium');
-  const [duration, setDuration]     = useState(3);
-  const [interrupt, setInterrupt]   = useState(preset?.interrupt !== undefined ? (preset.interrupt ? 'on' : 'off') : 'on');
-  const [script, setScript]         = useState('');
+  const [type,         setType]       = useState(preset?.type       ?? null);
+  const [audience,     setAudience]   = useState(preset?.audience   ?? null);
+  const [audienceCount, setCount]     = useState(preset?.type ? (TYPE_OPTIONS.find(t => t.val === preset.type)?.fixedCount ? TYPE_OPTIONS.find(t => t.val === preset.type)?.maxCount : 0) : 0);
+  const [difficulty,   setDifficulty] = useState(preset?.difficulty ?? null);
+  const [duration,     setDuration]   = useState(0);
+  const [interrupt,    setInterrupt]  = useState(preset?.interrupt !== undefined ? (preset.interrupt ? 'on' : 'off') : null);
+  const [script,       setScript]     = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  const currentTypeCfg = TYPE_OPTIONS.find(t => t.val === type);
+
+  const typeError          = submitted && !type                                               ? '발표 유형을 선택해주세요'      : null;
+  const audienceError      = submitted && !audience                                           ? '청자 유형을 선택해주세요'      : null;
+  const audienceCountError = submitted && !currentTypeCfg?.fixedCount && audienceCount === 0 ? '청중 수를 선택해주세요'        : null;
+  const difficultyError    = submitted && !difficulty                                         ? '압박 강도를 선택해주세요'      : null;
+  const durationError      = submitted && duration === 0                                      ? '발표 시간을 선택해주세요'      : null;
+  const interruptError     = submitted && !interrupt                                          ? '돌발 질문 여부를 선택해주세요' : null;
 
   function handleTypeChange(val) {
     const cfg = TYPE_OPTIONS.find(t => t.val === val) ?? TYPE_OPTIONS[0];
@@ -78,6 +91,13 @@ export default function SetupPage({ onStart, onLogout, onHome, onHistory, preset
   }
 
   function handleStart() {
+    setSubmitted(true);
+    const countInvalid = !currentTypeCfg?.fixedCount && audienceCount === 0;
+    if (!type || !audience || countInvalid || !difficulty || duration === 0 || !interrupt) {
+      const firstMissing = !type ? 'type' : !audience ? 'audience' : countInvalid ? 'audienceCount' : !difficulty ? 'difficulty' : duration === 0 ? 'duration' : 'interrupt';
+      document.getElementById(`field-${firstMissing}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return;
+    }
     const cfg = TYPE_OPTIONS.find(t => t.val === type) ?? TYPE_OPTIONS[0];
     onStart({
       type, audience,
@@ -87,8 +107,6 @@ export default function SetupPage({ onStart, onLogout, onHome, onHistory, preset
       script,
     });
   }
-
-  const currentTypeCfg = TYPE_OPTIONS.find(t => t.val === type) ?? TYPE_OPTIONS[0];
 
   return (
     <div className="setup-page">
@@ -115,47 +133,77 @@ export default function SetupPage({ onStart, onLogout, onHome, onHistory, preset
           </div>
         </div>
 
-        <div className="setup-section">
+        <div className="setup-section" id="field-type">
           <span className="ss-label">발표 유형</span>
-          <ChipGroup options={TYPE_OPTIONS} value={type} onChange={handleTypeChange} />
+          <ChipGroup
+            options={TYPE_OPTIONS}
+            value={type}
+            onChange={handleTypeChange}
+            error={typeError}
+          />
         </div>
 
-        <div className="setup-section">
+        <div className="setup-section" id="field-audience">
           <span className="ss-label">청자 유형</span>
-          <ChipGroup options={AUDIENCE_OPTIONS} value={audience} onChange={setAudience} />
+          <ChipGroup
+            options={AUDIENCE_OPTIONS}
+            value={audience}
+            onChange={v => setAudience(v)}
+            error={audienceError}
+          />
         </div>
 
-        <div className="setup-section">
+        <div className="setup-section" id="field-audienceCount">
           <span className="ss-label">청중 수</span>
           <div className="range-block">
             <div className="range-header">
-              <span className="range-title">{currentTypeCfg.fixedCount ? '고정 인원' : '청중 인원 선택'}</span>
-              <span className="range-value">{audienceCount}명</span>
+              <span className="range-title">
+                {!type ? '발표 유형을 먼저 선택해주세요' : currentTypeCfg?.fixedCount ? '고정 인원' : '청중 인원 선택'}
+              </span>
+              <span className="range-value">{type ? (audienceCount === 0 ? '—' : `${audienceCount}명`) : '—'}</span>
             </div>
-            <RangeSlider id="audienceCount" min={1} max={currentTypeCfg.maxCount}
-              value={audienceCount} onChange={setCount} disabled={currentTypeCfg.fixedCount} />
+            <RangeSlider
+              id="audienceCount"
+              min={0}
+              max={currentTypeCfg?.maxCount ?? 20}
+              value={audienceCount}
+              onChange={setCount}
+              disabled={!type || currentTypeCfg?.fixedCount}
+            />
           </div>
+          {audienceCountError && <div className="field-error">{audienceCountError}</div>}
         </div>
 
-        <div className="setup-section">
+        <div className="setup-section" id="field-difficulty">
           <span className="ss-label">압박 강도</span>
-          <ChipGroup options={DIFF_OPTIONS} value={difficulty} onChange={setDifficulty} />
+          <ChipGroup
+            options={DIFF_OPTIONS}
+            value={difficulty}
+            onChange={v => setDifficulty(v)}
+            error={difficultyError}
+          />
         </div>
 
-        <div className="setup-section">
+        <div className="setup-section" id="field-duration">
           <span className="ss-label">발표 시간 (분)</span>
           <div className="range-block">
             <div className="range-header">
               <span className="range-title">발표 총 시간</span>
-              <span className="range-value">{duration}분</span>
+              <span className="range-value">{duration === 0 ? '—' : `${duration}분`}</span>
             </div>
-            <RangeSlider id="duration" min={1} max={10} value={duration} onChange={setDuration} />
+            <RangeSlider id="duration" min={0} max={10} value={duration} onChange={setDuration} />
           </div>
+          {durationError && <div className="field-error">{durationError}</div>}
         </div>
 
-        <div className="setup-section">
+        <div className="setup-section" id="field-interrupt">
           <span className="ss-label">돌발 질문</span>
-          <ChipGroup options={INTERRUPT_OPTIONS} value={interrupt} onChange={setInterrupt} />
+          <ChipGroup
+            options={INTERRUPT_OPTIONS}
+            value={interrupt}
+            onChange={v => setInterrupt(v)}
+            error={interruptError}
+          />
         </div>
 
         <div className="setup-section">

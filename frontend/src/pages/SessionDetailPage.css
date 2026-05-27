@@ -66,3 +66,119 @@
 .da-line:hover { border-color: var(--ink2); }
 .da-blue { background: var(--blue); color: white; border: none; }
 .da-blue:hover { background: var(--blue-h); }
+
+/* ── 대본 토글 ── */
+.script-toggle-card {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.script-toggle-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: background 0.1s;
+}
+.script-toggle-btn:hover { background: var(--bg2); }
+
+.script-toggle-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.script-toggle-icon { font-size: 16px; }
+.script-toggle-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.script-toggle-count {
+  font-size: 11px;
+  color: var(--ink3);
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 7px;
+}
+
+.script-chevron {
+  font-size: 16px;
+  color: var(--ink3);
+  transition: transform 0.2s ease;
+  display: inline-block;
+}
+.script-chevron.open { transform: rotate(180deg); }
+
+.script-body {
+  border-top: 1px solid var(--border);
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.script-loading,
+.script-empty {
+  font-size: 13px;
+  color: var(--ink3);
+  text-align: center;
+  padding: 12px 0;
+}
+
+.script-full {
+  font-size: 14px;
+  line-height: 1.85;
+  color: var(--ink2);
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 18px;
+  white-space: pre-wrap;
+  word-break: keep-all;
+}
+
+.script-segments {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.script-seg {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+}
+.script-seg-idx {
+  font-family: var(--en);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink3);
+  min-width: 18px;
+  margin-top: 1px;
+}
+.script-seg-text {
+  flex: 1;
+  font-size: 13px;
+  color: var(--ink2);
+  line-height: 1.6;
+}
+.script-seg-time {
+  font-family: var(--en);
+  font-size: 11px;
+  color: var(--ink3);
+  white-space: nowrap;
+  margin-top: 2px;
+}

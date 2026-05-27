@@ -105,3 +105,15 @@
   color: var(--red); border-radius: 7px; padding: 10px 14px;
   font-size: 13px; margin-bottom: 16px;
 }
+
+/* 유효성 검사 */
+.chip.chip--error {
+  border-color: var(--red) !important;
+  color: var(--red);
+}
+.field-error {
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--red);
+  font-weight: 500;
+}

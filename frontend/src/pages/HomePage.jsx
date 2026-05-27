@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import './HomePage.css';
+
+const API = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 const LOGO = (
   <svg viewBox="0 0 16 16" fill="none">
@@ -59,6 +61,14 @@ const FEATS = [
 
 export default function HomePage({ token, onLogin, onLogout, onSetup, onHistory }) {
   const [tab, setTab] = useState('env');
+  const [userCount, setUserCount] = useState(null);
+
+  useEffect(() => {
+    fetch(`${API}/auth/user-count`)
+      .then(r => r.json())
+      .then(d => setUserCount(d.count))
+      .catch(() => {});
+  }, []);
 
   function handleEnvClick(env) {
     onSetup(env.preset);
@@ -67,27 +77,22 @@ export default function HomePage({ token, onLogin, onLogout, onSetup, onHistory 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg)' }}>
       {/* NAV */}
-      <nav className="nav">
-        <div className="nav-logo">
+      <nav className="nav" style={{ flexWrap: 'nowrap', gap: 8 }}>
+        <div className="nav-logo" style={{ flexShrink: 0 }}>
           <div className="logo-icon">{LOGO}</div>
           <span className="logo-text">SpeechLab</span>
         </div>
-        <div className="nav-links">
-          <button className="nav-a on">홈</button>
-          <button className="nav-a" onClick={() => document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth' })}>환경</button>
-          <button className="nav-a" onClick={() => { setTab('feat'); document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth' }); }}>기능</button>
-        </div>
-        <div className="nav-right">
+        <div className="nav-right" style={{ marginLeft: 'auto', flexShrink: 0, flexWrap: 'nowrap', gap: 6 }}>
           {token ? (
             <>
               <button className="btn-line" onClick={onHistory}>히스토리</button>
-              <button className="btn-blue" onClick={onSetup}>발표 시작</button>
+              <button className="btn-blue" onClick={() => onSetup()}>발표 시작</button>
               <button className="btn-line" onClick={onLogout}>로그아웃</button>
             </>
           ) : (
             <>
               <button className="btn-line" onClick={onLogin}>로그인</button>
-              <button className="btn-blue" onClick={onSetup}>시작하기</button>
+              <button className="btn-blue" onClick={() => onSetup()}>시작하기</button>
             </>
           )}
         </div>
@@ -107,14 +112,14 @@ export default function HomePage({ token, onLogin, onLogout, onSetup, onHistory 
             AI 청중이 실시간으로 반응하고 질문을 던진다.<br />실전 긴장은 압박 속에서 연습하고, 데이터로 성장을 확인한다.
           </p>
           <div className="hero-btns">
-            <button className="hb-main" onClick={onSetup}>무료로 시작하기</button>
+            <button className="hb-main" onClick={() => onSetup()}>시작하기</button>
             <button className="hb-sub" onClick={onHistory}>히스토리 보기</button>
           </div>
           <div className="hero-proof">
             <div className="proof-avatars">
               {['😊','😄','🙂','😁'].map((e,i) => <div key={i} className="pa">{e}</div>)}
             </div>
-            <span className="proof-text"><strong>3,200명</strong> 이상 연습 중</span>
+            <span className="proof-text"><strong>{userCount !== null ? `${userCount.toLocaleString()}명` : '...'}</strong> 이상 연습 중</span>
           </div>
         </div>
 
