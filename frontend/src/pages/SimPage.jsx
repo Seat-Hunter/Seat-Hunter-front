@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import './SimPage.css';
 import AudienceSimulator from './AudienceSimulator';
-import { startSession, endSession, connectSessionWS } from '../services/claudeApi';
+import { startSession, endSession, cancelSession, connectSessionWS } from '../services/claudeApi';
 
 const LOGO = (
   <svg viewBox="0 0 16 16" fill="none">
@@ -141,7 +141,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
 
   // ── 발표 취소 (기록 없이)
   const cancelSimRef = useRef(null);
-  cancelSimRef.current = function cancelSim() {
+  cancelSimRef.current = async function cancelSim() {
     if (stoppedRef.current) return;
     stoppedRef.current = true;
     clearInterval(timerIntervalRef.current);
@@ -149,8 +149,13 @@ export default function SimPage({ simState, onStop, onCancel }) {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive')
       mediaRecorderRef.current.stop();
     if (micStreamRef.current) micStreamRef.current.getTracks().forEach(t => t.stop());
-    if (wsRef.current)    wsRef.current.close();
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    // WS를 닫기 전에 백엔드 상태를 CANCELLED로 먼저 변경 — 순서가 바뀌면
+    // WebSocketDisconnect 핸들러가 RUNNING 상태를 보고 end_session()을 실행해버림
+    if (sessionId) {
+      try { await cancelSession(sessionId); } catch (e) { console.error(e); }
+    }
+    if (wsRef.current) wsRef.current.close();
     onCancelRef.current?.();
   };
 
