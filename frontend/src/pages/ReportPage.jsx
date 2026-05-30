@@ -40,13 +40,23 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
   const ss   = String(elapsed % 60).padStart(2, '0');
   const meta = `${new Date().toLocaleString('ko-KR')} · ${type} · ${difficulty}`;
 
+  const [isGenerating, setIsGenerating] = useState(true);
+
   useEffect(() => {
+    // WS 종료 시 백엔드가 즉시 리포트를 생성하므로 pollReport가 바로 성공할 수 있다.
+    // 최소 1.5초는 로딩 화면을 보여줘서 사용자가 생성 중임을 인지하도록 한다.
+    const minDelay = new Promise(r => setTimeout(r, 1500));
+
     if (!sessionId) {
-      setReportData({ strengths: [], weaknesses: [], improvements: [], curriculum_next: '' });
+      minDelay.then(() => {
+        setReportData({ strengths: [], weaknesses: [], improvements: [], curriculum_next: '' });
+        setIsGenerating(false);
+      });
       return;
     }
-    pollReport(sessionId)
-      .then(report => {
+
+    Promise.all([pollReport(sessionId), minDelay])
+      .then(([report]) => {
         if (report) {
           setBackendReport(report);
           setReportData({
@@ -59,7 +69,8 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
           setReportData({ strengths: [], weaknesses: [], improvements: [], curriculum_next: '피드백을 불러오지 못했습니다.' });
         }
       })
-      .catch(() => setReportData({ strengths: [], weaknesses: [], improvements: [], curriculum_next: '오류가 발생했습니다.' }));
+      .catch(() => setReportData({ strengths: [], weaknesses: [], improvements: [], curriculum_next: '오류가 발생했습니다.' }))
+      .finally(() => setIsGenerating(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -84,7 +95,13 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
         </div>
       </nav>
 
-      <div className="report-inner">
+      {isGenerating ? (
+        <div className="report-generating">
+          <div className="report-generating-spinner" />
+          <div className="report-generating-title">리포트 생성 중...</div>
+          <div className="report-generating-sub">발표 데이터를 분석하고 있습니다</div>
+        </div>
+      ) : <div className="report-inner">
         {/* 헤더 */}
         <div className="report-header">
           <div>
@@ -186,7 +203,7 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
           <button className="btn-restart" style={{ background: 'var(--blue)', color: 'white', borderColor: 'var(--blue)' }}
             onClick={onRestart}>다시 연습</button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
