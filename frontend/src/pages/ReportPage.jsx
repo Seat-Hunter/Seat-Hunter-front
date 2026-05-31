@@ -2,13 +2,57 @@ import { useEffect, useState } from 'react';
 import './ReportPage.css';
 import { pollReport } from '../services/claudeApi';
 
-const LOGO = (
-  <svg viewBox="0 0 16 16" fill="none">
-    <rect x="3" y="7" width="10" height="7" rx="2" fill="white" opacity="0.9"/>
-    <path d="M6 7V5a2 2 0 0 1 4 0v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-    <circle cx="8" cy="10.5" r="1" fill="#2563eb"/>
-  </svg>
-);
+const API = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+
+const LOGO = <span style={{ fontSize: 14 }}>🙋</span>;
+
+function ScriptToggle({ sessionId }) {
+  const [open,    setOpen]    = useState(false);
+  const [script,  setScript]  = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [fetched, setFetched] = useState(false);
+
+  async function handleToggle() {
+    setOpen(prev => !prev);
+    if (!fetched) {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API}/api/v1/sessions/${sessionId}/scripts`);
+        if (res.ok) setScript(await res.json());
+        else setScript({ full_script: '' });
+      } catch {
+        setScript({ full_script: '' });
+      } finally {
+        setLoading(false);
+        setFetched(true);
+      }
+    }
+  }
+
+  const hasScript = script?.full_script;
+
+  return (
+    <div className="script-toggle-card">
+      <button className="script-toggle-btn" onClick={handleToggle}>
+        <span className="script-toggle-left">
+          <span className="script-toggle-icon">📝</span>
+          <span className="script-toggle-label">발표 대본</span>
+        </span>
+        <span className={`script-chevron${open ? ' open' : ''}`}>▾</span>
+      </button>
+      {open && (
+        <div className="script-body">
+          {loading
+            ? <div className="script-loading">대본 불러오는 중...</div>
+            : !hasScript
+              ? <div className="script-empty">저장된 대본이 없습니다.</div>
+              : <div className="script-full">{script.full_script}</div>
+          }
+        </div>
+      )}
+    </div>
+  );
+}
 
 function calcLocalScore(fillerCount, interruptCount, avgWpm) {
   let s = 100;
@@ -179,6 +223,9 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
             )}
           </>
         )}
+
+        {/* 발표 대본 */}
+        {sessionId && <ScriptToggle sessionId={sessionId} />}
 
         {/* 인터럽트 로그 */}
         <div className="feedback-section">

@@ -3,13 +3,7 @@ import './HomePage.css';
 
 const API = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
-const LOGO = (
-  <svg viewBox="0 0 16 16" fill="none">
-    <rect x="3" y="7" width="10" height="7" rx="2" fill="white" opacity="0.9"/>
-    <path d="M6 7V5a2 2 0 0 1 4 0v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-    <circle cx="8" cy="10.5" r="1" fill="#2563eb"/>
-  </svg>
-);
+const LOGO = <span style={{ fontSize: 14 }}>🙋</span>;
 
 const ENVS = [
   {
@@ -63,11 +57,48 @@ export default function HomePage({ token, onLogin, onLogout, onSetup, onHistory 
   const [tab, setTab] = useState('env');
   const [userCount, setUserCount] = useState(null);
 
+  // 애니메이션 카드 상태
+  const SCENES = [
+    {
+      timer: '02:14',
+      score: 91, wpm: 138, filler: 1, interrupt: 2,
+      alert: { type: 'blue', icon: '🎙️', title: null, msg: '음성 인식 중...' },
+      feedback: null,
+    },
+    {
+      timer: '03:41',
+      score: 85, wpm: 112, filler: 3, interrupt: 2,
+      alert: { type: 'amber', icon: '⚠️', title: 'AI 실시간 피드백', msg: '필러 단어가 늘고 있습니다. 잠깐 멈추고 정리해보세요.' },
+      feedback: null,
+    },
+    {
+      timer: '05:08',
+      score: 93, wpm: 145, filler: 1, interrupt: 4,
+      alert: { type: 'blue', icon: '🎙️', title: null, msg: '음성 인식 중...' },
+      feedback: null,
+    },
+    {
+      timer: '07:22',
+      score: 78, wpm: 88, filler: 2, interrupt: 5,
+      alert: { type: 'amber', icon: '⚠️', title: 'AI 실시간 피드백', msg: '말하기 속도가 다소 빠릅니다. 도입부 속도를 조절해보세요.' },
+      feedback: null,
+    },
+  ];
+  const [sceneIdx, setSceneIdx] = useState(0);
+  const scene = SCENES[sceneIdx];
+
   useEffect(() => {
     fetch(`${API}/auth/user-count`)
       .then(r => r.json())
       .then(d => setUserCount(d.count))
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setSceneIdx(i => (i + 1) % SCENES.length);
+    }, 3000);
+    return () => clearInterval(t);
   }, []);
 
   function handleEnvClick(env) {
@@ -77,22 +108,27 @@ export default function HomePage({ token, onLogin, onLogout, onSetup, onHistory 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh', background: 'var(--bg)' }}>
       {/* NAV */}
-      <nav className="nav" style={{ flexWrap: 'nowrap', gap: 8 }}>
-        <div className="nav-logo" style={{ flexShrink: 0 }}>
+      <nav className="nav">
+        <div className="nav-logo">
           <div className="logo-icon">{LOGO}</div>
           <span className="logo-text">SpeechLab</span>
         </div>
-        <div className="nav-right" style={{ marginLeft: 'auto', flexShrink: 0, flexWrap: 'nowrap', gap: 6 }}>
+        <div className="nav-links">
+          <button className="nav-a on">홈</button>
+          <button className="nav-a" onClick={() => document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth' })}>환경</button>
+          <button className="nav-a" onClick={() => { setTab('feat'); document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth' }); }}>기능</button>
+        </div>
+        <div className="nav-right">
           {token ? (
             <>
               <button className="btn-line" onClick={onHistory}>히스토리</button>
-              <button className="btn-blue" onClick={() => onSetup()}>발표 시작</button>
+              <button className="btn-blue" onClick={onSetup}>발표 시작</button>
               <button className="btn-line" onClick={onLogout}>로그아웃</button>
             </>
           ) : (
             <>
               <button className="btn-line" onClick={onLogin}>로그인</button>
-              <button className="btn-blue" onClick={() => onSetup()}>시작하기</button>
+              <button className="btn-blue" onClick={onSetup}>시작하기</button>
             </>
           )}
         </div>
@@ -123,26 +159,25 @@ export default function HomePage({ token, onLogin, onLogout, onSetup, onHistory 
           </div>
         </div>
 
-        {/* 프리뷰 카드 */}
-        <div className="session-card">
+        {/* 프리뷰 카드 — 애니메이션 */}
+        <div className="session-card" key={sceneIdx} style={{ animation: 'card-fade 0.4s ease' }}>
           <div className="sc-header">
             <div className="sc-live"><span className="sc-live-dot"/>세션 진행 중</div>
-            <span className="sc-timer">04:22 / 10:00</span>
+            <span className="sc-timer">{scene.timer} / 10:00</span>
           </div>
           <div className="sc-body">
             <div className="sc-metrics">
-              <div className="sc-m"><div className="sc-m-label">종합 점수</div><div className="sc-m-val blue">91</div></div>
-              <div className="sc-m"><div className="sc-m-label">WPM</div><div className="sc-m-val green">138</div></div>
-              <div className="sc-m"><div className="sc-m-label">필러 단어</div><div className="sc-m-val amber">1</div></div>
-              <div className="sc-m"><div className="sc-m-label">인터럽트</div><div className="sc-m-val" style={{color:'var(--ink2)'}}>2</div></div>
+              <div className="sc-m"><div className="sc-m-label">종합 점수</div><div className="sc-m-val blue">{scene.score}</div></div>
+              <div className="sc-m"><div className="sc-m-label">WPM</div><div className="sc-m-val green">{scene.wpm}</div></div>
+              <div className="sc-m"><div className="sc-m-label">필러 단어</div><div className="sc-m-val amber">{scene.filler}</div></div>
+              <div className="sc-m"><div className="sc-m-label">인터럽트</div><div className="sc-m-val" style={{color:'var(--ink2)'}}>{scene.interrupt}</div></div>
             </div>
-            <div className="sc-alert blue-bg">
-              <span className="sa-icon">🎙️</span>
-              <div className="sa-text">음성 인식 중...</div>
-            </div>
-            <div className="sc-alert amber-bg">
-              <span className="sa-icon">⚠️</span>
-              <div className="sa-text"><strong>AI 실시간 피드백</strong>말하기 속도가 다소 빠릅니다. 도입부 속도를 조절해보세요.</div>
+            <div className={`sc-alert ${scene.alert.type}-bg`}>
+              <span className="sa-icon">{scene.alert.icon}</span>
+              <div className="sa-text">
+                {scene.alert.title && <strong>{scene.alert.title}</strong>}
+                {scene.alert.msg}
+              </div>
             </div>
           </div>
         </div>

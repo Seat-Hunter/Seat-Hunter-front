@@ -107,3 +107,13 @@
   background: var(--blue); color: white;
   border-color: var(--blue); font-weight: 600;
 }
+
+/* 삭제 버튼 */
+.hi-del {
+  background: none; border: none; cursor: pointer;
+  font-size: 14px; padding: 4px 6px; border-radius: 5px;
+  color: var(--ink3); opacity: 0; transition: all 0.15s;
+  flex-shrink: 0;
+}
+.hi:hover .hi-del { opacity: 1; }
+.hi-del:hover { background: var(--red-s); color: var(--red); }

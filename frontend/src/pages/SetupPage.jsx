@@ -1,13 +1,7 @@
 import { useState } from 'react';
 import './SetupPage.css';
 
-const LOGO = (
-  <svg viewBox="0 0 16 16" fill="none">
-    <rect x="3" y="7" width="10" height="7" rx="2" fill="white" opacity="0.9"/>
-    <path d="M6 7V5a2 2 0 0 1 4 0v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-    <circle cx="8" cy="10.5" r="1" fill="#2563eb"/>
-  </svg>
-);
+const LOGO = <span style={{ fontSize: 14 }}>🙋</span>;
 
 const TYPE_OPTIONS = [
   { val: 'interview', label: '면접',      maxCount: 4,  fixedCount: true  },

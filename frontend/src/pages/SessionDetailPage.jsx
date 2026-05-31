@@ -1,14 +1,7 @@
 import { useEffect, useState } from 'react';
 import './SessionDetailPage.css';
 
-const LOGO = (
-  <svg viewBox="0 0 16 16" fill="none">
-    <rect x="3" y="7" width="10" height="7" rx="2" fill="white" opacity="0.9"/>
-    <path d="M6 7V5a2 2 0 0 1 4 0v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-    <circle cx="8" cy="10.5" r="1" fill="#2563eb"/>
-  </svg>
-);
-
+const LOGO = <span style={{ fontSize: 14 }}>🙋</span>;
 const API = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 const TYPE_LABEL = { interview: '면접', academic: '학술발표', school: '학교발표', meeting: '회의' };
@@ -56,9 +49,6 @@ function ScriptToggle({ sessionId }) {
         <span className="script-toggle-left">
           <span className="script-toggle-icon">📝</span>
           <span className="script-toggle-label">발표 대본</span>
-          {fetched && hasScript && (
-            <span className="script-toggle-count">{script.segments?.length ?? 0}개 세그먼트</span>
-          )}
         </span>
         <span className={`script-chevron${open ? ' open' : ''}`}>▾</span>
       </button>
@@ -70,24 +60,7 @@ function ScriptToggle({ sessionId }) {
           ) : !hasScript ? (
             <div className="script-empty">저장된 대본이 없습니다.</div>
           ) : (
-            <>
-              <div className="script-full">{script.full_script}</div>
-              {script.segments?.length > 0 && (
-                <div className="script-segments">
-                  {script.segments.map((seg, i) => (
-                    <div className="script-seg" key={i}>
-                      <span className="script-seg-idx">{i + 1}</span>
-                      <span className="script-seg-text">{seg.transcript}</span>
-                      {seg.start_ms != null && (
-                        <span className="script-seg-time">
-                          {Math.floor(seg.start_ms / 1000)}s
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+            <div className="script-full">{script.full_script}</div>
           )}
         </div>
       )}
