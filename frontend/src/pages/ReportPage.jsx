@@ -2,13 +2,57 @@ import { useEffect, useState } from 'react';
 import './ReportPage.css';
 import { pollReport } from '../services/claudeApi';
 
-const LOGO = (
-  <svg viewBox="0 0 16 16" fill="none">
-    <rect x="3" y="7" width="10" height="7" rx="2" fill="white" opacity="0.9"/>
-    <path d="M6 7V5a2 2 0 0 1 4 0v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-    <circle cx="8" cy="10.5" r="1" fill="#2563eb"/>
-  </svg>
-);
+const API = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+
+const LOGO = <span style={{ fontSize: 14 }}>🙋</span>;
+
+function ScriptToggle({ sessionId }) {
+  const [open,    setOpen]    = useState(false);
+  const [script,  setScript]  = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [fetched, setFetched] = useState(false);
+
+  async function handleToggle() {
+    setOpen(prev => !prev);
+    if (!fetched) {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API}/api/v1/sessions/${sessionId}/scripts`);
+        if (res.ok) setScript(await res.json());
+        else setScript({ full_script: '' });
+      } catch {
+        setScript({ full_script: '' });
+      } finally {
+        setLoading(false);
+        setFetched(true);
+      }
+    }
+  }
+
+  const hasScript = script?.full_script;
+
+  return (
+    <div className="script-toggle-card">
+      <button className="script-toggle-btn" onClick={handleToggle}>
+        <span className="script-toggle-left">
+          <span className="script-toggle-icon">📝</span>
+          <span className="script-toggle-label">발표 대본</span>
+        </span>
+        <span className={`script-chevron${open ? ' open' : ''}`}>▾</span>
+      </button>
+      {open && (
+        <div className="script-body">
+          {loading
+            ? <div className="script-loading">대본 불러오는 중...</div>
+            : !hasScript
+              ? <div className="script-empty">저장된 대본이 없습니다.</div>
+              : <div className="script-full">{script.full_script}</div>
+          }
+        </div>
+      )}
+    </div>
+  );
+}
 
 function calcLocalScore(fillerCount, interruptCount, avgWpm) {
   let s = 100;
@@ -40,13 +84,23 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
   const ss   = String(elapsed % 60).padStart(2, '0');
   const meta = `${new Date().toLocaleString('ko-KR')} · ${type} · ${difficulty}`;
 
+  const [isGenerating, setIsGenerating] = useState(true);
+
   useEffect(() => {
+    // WS 종료 시 백엔드가 즉시 리포트를 생성하므로 pollReport가 바로 성공할 수 있다.
+    // 최소 1.5초는 로딩 화면을 보여줘서 사용자가 생성 중임을 인지하도록 한다.
+    const minDelay = new Promise(r => setTimeout(r, 1500));
+
     if (!sessionId) {
-      setReportData({ strengths: [], weaknesses: [], improvements: [], curriculum_next: '' });
+      minDelay.then(() => {
+        setReportData({ strengths: [], weaknesses: [], improvements: [], curriculum_next: '' });
+        setIsGenerating(false);
+      });
       return;
     }
-    pollReport(sessionId)
-      .then(report => {
+
+    Promise.all([pollReport(sessionId), minDelay])
+      .then(([report]) => {
         if (report) {
           setBackendReport(report);
           setReportData({
@@ -59,7 +113,8 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
           setReportData({ strengths: [], weaknesses: [], improvements: [], curriculum_next: '피드백을 불러오지 못했습니다.' });
         }
       })
-      .catch(() => setReportData({ strengths: [], weaknesses: [], improvements: [], curriculum_next: '오류가 발생했습니다.' }));
+      .catch(() => setReportData({ strengths: [], weaknesses: [], improvements: [], curriculum_next: '오류가 발생했습니다.' }))
+      .finally(() => setIsGenerating(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -84,7 +139,13 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
         </div>
       </nav>
 
-      <div className="report-inner">
+      {isGenerating ? (
+        <div className="report-generating">
+          <div className="report-generating-spinner" />
+          <div className="report-generating-title">리포트 생성 중...</div>
+          <div className="report-generating-sub">발표 데이터를 분석하고 있습니다</div>
+        </div>
+      ) : <div className="report-inner">
         {/* 헤더 */}
         <div className="report-header">
           <div>
@@ -163,6 +224,9 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
           </>
         )}
 
+        {/* 발표 대본 */}
+        {sessionId && <ScriptToggle sessionId={sessionId} />}
+
         {/* 인터럽트 로그 */}
         <div className="feedback-section">
           <div className="feedback-section__title">돌발 질문 기록</div>
@@ -186,7 +250,7 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
           <button className="btn-restart" style={{ background: 'var(--blue)', color: 'white', borderColor: 'var(--blue)' }}
             onClick={onRestart}>다시 연습</button>
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

@@ -20,7 +20,7 @@ const NO_BACK_PAGES = ['sim'];
 
 export default function App() {
   const [token,     setToken]     = useState(() => localStorage.getItem('token'));
-  const [page,      setPage]      = useState(() => localStorage.getItem('token') ? 'home' : 'login');
+  const [page, setPage] = useState('home');
   const [simState,  setSimState]  = useState(INITIAL_SIM);
   const [loading,   setLoading]   = useState(false);
   const [startError, setStartError] = useState(null);
@@ -40,8 +40,7 @@ export default function App() {
 
   // 초기 진입 시 히스토리 상태 설정
   useEffect(() => {
-    const initialPage = localStorage.getItem('token') ? 'home' : 'login';
-    window.history.replaceState({ page: initialPage }, '', `#${initialPage}`);
+    window.history.replaceState({ page: 'home' }, '', '#home');
   }, []);
 
   // 브라우저 뒤로/앞으로 가기 처리
@@ -99,8 +98,10 @@ export default function App() {
     go('setup');
   }
 
+  const [loginConfirm, setLoginConfirm] = useState(false);
+
   function handleSetup(preset = null) {
-    if (!token) { go('login'); return; }
+    if (!token) { setLoginConfirm(true); return; }
     setSimPreset(preset);
     go('setup');
   }
@@ -169,9 +170,11 @@ export default function App() {
       {page === 'history' && (
         <HistoryPage
           onHome={() => go('home')}
-          onSetup={() => token ? go('setup') : go('login')}
+          onSetup={() => token ? go('setup') : setLoginConfirm(true)}
           onLogout={handleLogout}
           onDetail={handleDetail}
+          token={token}
+          onLogin={() => go('login')}
         />
       )}
       {page === 'detail'  && (
@@ -181,6 +184,34 @@ export default function App() {
           onHome={() => go('home')}
           onSetup={() => token ? go('setup') : go('login')}
         />
+      )}
+      {loginConfirm && (
+        <div style={{
+          position:'fixed', inset:0, background:'rgba(0,0,0,0.4)',
+          display:'flex', alignItems:'center', justifyContent:'center', zIndex:999,
+        }}>
+          <div style={{
+            background:'white', borderRadius:12, padding:'28px 32px',
+            width:320, boxShadow:'0 8px 32px rgba(0,0,0,0.15)',
+          }}>
+            <div style={{ fontSize:16, fontWeight:700, marginBottom:8 }}>로그인이 필요합니다</div>
+            <div style={{ fontSize:13, color:'var(--ink2)', marginBottom:24, lineHeight:1.6 }}>
+              발표 연습을 시작하려면 로그인하세요.
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => setLoginConfirm(false)} style={{
+                flex:1, padding:'10px', borderRadius:7, fontSize:13,
+                border:'1px solid var(--border2)', background:'white',
+                cursor:'pointer', fontFamily:'var(--sans)', fontWeight:500,
+              }}>취소</button>
+              <button onClick={() => { setLoginConfirm(false); go('login'); }} style={{
+                flex:1, padding:'10px', borderRadius:7, fontSize:13,
+                border:'none', background:'var(--blue)', color:'white',
+                cursor:'pointer', fontFamily:'var(--sans)', fontWeight:700,
+              }}>로그인하기</button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

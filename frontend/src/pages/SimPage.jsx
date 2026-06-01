@@ -1,15 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import './SimPage.css';
 import AudienceSimulator from './AudienceSimulator';
-import { startSession, endSession, connectSessionWS } from '../services/claudeApi';
+import { startSession, endSession, cancelSession, connectSessionWS } from '../services/claudeApi';
 
-const LOGO = (
-  <svg viewBox="0 0 16 16" fill="none">
-    <rect x="3" y="7" width="10" height="7" rx="2" fill="white" opacity="0.9"/>
-    <path d="M6 7V5a2 2 0 0 1 4 0v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-    <circle cx="8" cy="10.5" r="1" fill="#2563eb"/>
-  </svg>
-);
+const LOGO = <span style={{ fontSize: 14 }}>🙋</span>;
 
 const FILLERS = ['어', '음', '그', '저', '뭐', '그냥', '좀', '아', '에', '이'];
 
@@ -59,6 +53,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
   const [liveFeedback, setLiveFeedback]     = useState(null);
   const [reportToast, setReportToast]       = useState(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [sessionPhase, setSessionPhase]     = useState('presenting'); // presenting | questioning | answering
 
   // ── refs
   const startTimeRef       = useRef(Date.now());
@@ -104,6 +99,8 @@ export default function SimPage({ simState, onStop, onCancel }) {
     setFillerCount(fillerCountRef.current);
   }
 
+  const isTtsPlayingRef = useRef(false);
+
   // ── 인터럽트 표시
   function showInterrupt(question) {
     interruptLogRef.current.push(question);
@@ -141,7 +138,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
 
   // ── 발표 취소 (기록 없이)
   const cancelSimRef = useRef(null);
-  cancelSimRef.current = function cancelSim() {
+  cancelSimRef.current = async function cancelSim() {
     if (stoppedRef.current) return;
     stoppedRef.current = true;
     clearInterval(timerIntervalRef.current);
@@ -149,8 +146,13 @@ export default function SimPage({ simState, onStop, onCancel }) {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive')
       mediaRecorderRef.current.stop();
     if (micStreamRef.current) micStreamRef.current.getTracks().forEach(t => t.stop());
-    if (wsRef.current)    wsRef.current.close();
     if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+    // WS를 닫기 전에 백엔드 상태를 CANCELLED로 먼저 변경 — 순서가 바뀌면
+    // WebSocketDisconnect 핸들러가 RUNNING 상태를 보고 end_session()을 실행해버림
+    if (sessionId) {
+      try { await cancelSession(sessionId); } catch (e) { console.error(e); }
+    }
+    if (wsRef.current) wsRef.current.close();
     onCancelRef.current?.();
   };
 
@@ -183,10 +185,14 @@ export default function SimPage({ simState, onStop, onCancel }) {
         break;
       case 'tts_audio': {
         try {
+          isTtsPlayingRef.current = true;
+          setSessionPhase('questioning');
           const audio = new Audio(`data:audio/${msg.format ?? 'mp3'};base64,${msg.audio_base64}`);
           audioRef.current = audio;
           audio.onended = () => {
             audioRef.current = null;
+            isTtsPlayingRef.current = false;
+            setSessionPhase('answering');
             if (wsRef.current?.readyState === WebSocket.OPEN)
               wsRef.current.send(JSON.stringify({ type: 'tts_finished', question_id: msg.question_id ?? 'q' }));
           };
@@ -196,9 +202,17 @@ export default function SimPage({ simState, onStop, onCancel }) {
       }
       case 'stop_tts':
         if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+        isTtsPlayingRef.current = false;
         break;
       case 'session_state':
         console.log('[세션 상태]', msg.state);
+        if (msg.state === 'RUNNING')     setSessionPhase('presenting');
+        if (msg.state === 'INTERRUPTED') setSessionPhase('questioning');
+        if (msg.state === 'ANSWERING')   setSessionPhase('answering');
+        if (msg.state === 'FINISHED')    setSessionPhase('presenting');
+        break;
+      case 'question_resolved':
+        setSessionPhase('presenting');
         break;
     }
   }
@@ -237,6 +251,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
           if (e.data.size === 0) return;
           if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
           if (stoppedRef.current) return;
+          if (isTtsPlayingRef.current) return; // TTS 재생 중 마이크 차단
           const buf = await e.data.arrayBuffer();
           const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
           wsRef.current.send(JSON.stringify({ type: 'audio_chunk', timestamp_ms: Date.now(), audio_base64: b64 }));
@@ -341,6 +356,25 @@ export default function SimPage({ simState, onStop, onCancel }) {
       <div className="sim-body">
         {/* 스테이지 */}
         <div className={`sim-stage ${roomType}`}>
+          {/* 질문/답변 오버레이 */}
+          {sessionPhase !== 'presenting' && (
+            <div className={`phase-overlay phase-overlay--${sessionPhase}`}>
+              {sessionPhase === 'questioning' && (
+                <>
+                  <div className="phase-overlay__icon">🎤</div>
+                  <div className="phase-overlay__title">질문 중</div>
+                  <div className="phase-overlay__sub">마이크가 일시 정지됩니다</div>
+                </>
+              )}
+              {sessionPhase === 'answering' && (
+                <>
+                  <div className="phase-overlay__icon">💬</div>
+                  <div className="phase-overlay__title">답변 시간</div>
+                  <div className="phase-overlay__sub">마이크에 대고 답변하세요</div>
+                </>
+              )}
+            </div>
+          )}
           <div className={`interrupt-bubble${bubbleVisible ? ' interrupt-bubble--show' : ''}`}>
             <div className="interrupt-bubble__from">돌발 질문</div>
             <div style={{ fontSize: 14, color: 'var(--ink)', lineHeight: 1.5, fontWeight: 500 }}>{bubbleText}</div>
@@ -368,13 +402,29 @@ export default function SimPage({ simState, onStop, onCancel }) {
             </div>
           </div>
 
-          {/* STT */}
+          {/* 세션 단계 표시 */}
           <div className="hud-section">
-            <div className="listening-indicator">
-              <div className={`dot${sttActive ? ' dot--active' : ''}`} />
-              <span style={{ fontSize: 12, color: 'var(--ink2)' }}>{listenLabel}</span>
-            </div>
-            {liveFeedback && <div className="live-feedback" style={{ marginTop: 10 }}>{liveFeedback}</div>}
+            {sessionPhase === 'presenting' && (
+              <div className="phase-badge phase-badge--presenting">
+                <div className={`dot${sttActive ? ' dot--active' : ''}`} />
+                <span>발표 중</span>
+              </div>
+            )}
+            {sessionPhase === 'questioning' && (
+              <div className="phase-badge phase-badge--questioning">
+                <span className="phase-badge__icon">🎤</span>
+                <span>질문 듣는 중 — 마이크 일시 정지</span>
+              </div>
+            )}
+            {sessionPhase === 'answering' && (
+              <div className="phase-badge phase-badge--answering">
+                <span className="phase-badge__icon">💬</span>
+                <span>답변 시간</span>
+              </div>
+            )}
+            {liveFeedback && sessionPhase === 'presenting' && (
+              <div className="live-feedback" style={{ marginTop: 10 }}>{liveFeedback}</div>
+            )}
           </div>
 
           {/* WPM */}

@@ -51,3 +51,69 @@
 .he-icon  { font-size: 40px; margin-bottom: 12px; }
 .he-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
 .he-desc  { font-size: 13px; color: var(--ink2); margin-bottom: 20px; }
+
+/* ── 꺾은선 그래프 ── */
+.chart-wrap {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px 12px;
+  margin: 8px 0;
+}
+.chart-title {
+  font-size: 12px; font-weight: 700; color: var(--ink3);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+.chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ── 필터 바 ── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.filter-label {
+  font-size: 11px; font-weight: 700;
+  color: var(--ink3); white-space: nowrap;
+}
+.filter-chips {
+  display: flex; gap: 5px; flex-wrap: wrap;
+}
+.filter-chip {
+  padding: 4px 11px; border-radius: 6px;
+  font-size: 12px; font-weight: 500;
+  color: var(--ink2); background: var(--bg2);
+  border: 1px solid var(--border);
+  cursor: pointer; font-family: var(--sans);
+  transition: all 0.1s; white-space: nowrap;
+}
+.filter-chip:hover { border-color: var(--blue); color: var(--blue); }
+.filter-chip.on {
+  background: var(--blue); color: white;
+  border-color: var(--blue); font-weight: 600;
+}
+
+/* 삭제 버튼 */
+.hi-del {
+  background: none; border: none; cursor: pointer;
+  font-size: 14px; padding: 4px 6px; border-radius: 5px;
+  color: var(--ink3); opacity: 0; transition: all 0.15s;
+  flex-shrink: 0;
+}
+.hi:hover .hi-del { opacity: 1; }
+.hi-del:hover { background: var(--red-s); color: var(--red); }

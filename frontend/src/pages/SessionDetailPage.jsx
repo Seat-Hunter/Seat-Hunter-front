@@ -1,14 +1,7 @@
 import { useEffect, useState } from 'react';
 import './SessionDetailPage.css';
 
-const LOGO = (
-  <svg viewBox="0 0 16 16" fill="none">
-    <rect x="3" y="7" width="10" height="7" rx="2" fill="white" opacity="0.9"/>
-    <path d="M6 7V5a2 2 0 0 1 4 0v2" stroke="white" strokeWidth="1.5" strokeLinecap="round"/>
-    <circle cx="8" cy="10.5" r="1" fill="#2563eb"/>
-  </svg>
-);
-
+const LOGO = <span style={{ fontSize: 14 }}>🙋</span>;
 const API = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 const TYPE_LABEL = { interview: '면접', academic: '학술발표', school: '학교발표', meeting: '회의' };
@@ -21,8 +14,61 @@ function scoreColor(s) {
   return 'var(--red)';
 }
 
+function ScriptToggle({ sessionId }) {
+  const [open,     setOpen]     = useState(false);
+  const [script,   setScript]   = useState(null);
+  const [loading,  setLoading]  = useState(false);
+  const [fetched,  setFetched]  = useState(false);
+
+  async function handleToggle() {
+    setOpen(prev => !prev);
+    if (!fetched) {
+      setLoading(true);
+      try {
+        const res = await fetch(`${API}/api/v1/sessions/${sessionId}/scripts`);
+        if (res.ok) {
+          const data = await res.json();
+          setScript(data);
+        } else {
+          setScript({ full_script: '', segments: [] });
+        }
+      } catch {
+        setScript({ full_script: '', segments: [] });
+      } finally {
+        setLoading(false);
+        setFetched(true);
+      }
+    }
+  }
+
+  const hasScript = script && (script.full_script || script.segments?.length > 0);
+
+  return (
+    <div className="script-toggle-card">
+      <button className="script-toggle-btn" onClick={handleToggle}>
+        <span className="script-toggle-left">
+          <span className="script-toggle-icon">📝</span>
+          <span className="script-toggle-label">발표 대본</span>
+        </span>
+        <span className={`script-chevron${open ? ' open' : ''}`}>▾</span>
+      </button>
+
+      {open && (
+        <div className="script-body">
+          {loading ? (
+            <div className="script-loading">대본 불러오는 중...</div>
+          ) : !hasScript ? (
+            <div className="script-empty">저장된 대본이 없습니다.</div>
+          ) : (
+            <div className="script-full">{script.full_script}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }) {
-  const [session,    setSession]    = useState(null);
   const [report,     setReport]     = useState(null);
   const [interrupts, setInterrupts] = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -33,20 +79,12 @@ export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }
 
     async function load() {
       try {
-        const [sRes, rRes, iRes] = await Promise.allSettled([
-          fetch(`${API}/api/v1/sessions/${sessionId}/report`),
-          fetch(`${API}/api/v1/sessions/${sessionId}/report`),
-          fetch(`${API}/api/v1/sessions/${sessionId}/interrupts`),
-        ]);
-
-        // 세션 메타는 report에 포함돼 있거나, users/{id}/sessions에서 찾아야 함
-        // 일단 report로 단일 엔드포인트 사용
         const reportRes = await fetch(`${API}/api/v1/sessions/${sessionId}/report`);
         if (reportRes.ok) {
           const r = await reportRes.json();
           setReport(r);
         } else if (reportRes.status === 404) {
-          setReport(null); // 리포트 미생성
+          setReport(null);
         }
 
         const intRes = await fetch(`${API}/api/v1/sessions/${sessionId}/interrupts`);
@@ -65,7 +103,6 @@ export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }
   }, [sessionId]);
 
   const score = report?.overall_score ?? null;
-  const TYPE_LABEL_MAP = TYPE_LABEL;
 
   return (
     <div className="detail-page">
@@ -104,9 +141,7 @@ export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }
               <div>
                 <div className="detail-eyebrow">세션 ID · {sessionId}</div>
                 <div className="detail-title">
-                  {report ? (
-                    `${TYPE_LABEL[report.presentation_type] ?? '발표'} 세션`
-                  ) : '세션 상세'}
+                  {report ? `${TYPE_LABEL[report.presentation_type] ?? '발표'} 세션` : '세션 상세'}
                 </div>
                 <div className="detail-meta">
                   {report?.created_at
@@ -168,6 +203,9 @@ export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }
                 </div>
               </div>
             )}
+
+            {/* 발표 대본 토글 */}
+            {report && <ScriptToggle sessionId={sessionId} />}
 
             {/* 리포트 없음 */}
             {!report && !loading && (

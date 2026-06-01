@@ -46,6 +46,14 @@ export async function endSession(sessionId) {
   return res.json();
 }
 
+export async function cancelSession(sessionId) {
+  const res = await fetch(`${API_BASE}/api/v1/sessions/${sessionId}/cancel`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error(`세션 취소 실패: ${res.status}`);
+  return res.json();
+}
+
 export async function getReport(sessionId) {
   const res = await fetch(`${API_BASE}/api/v1/sessions/${sessionId}/report`);
   if (!res.ok) throw new Error(`리포트 조회 실패: ${res.status}`);
