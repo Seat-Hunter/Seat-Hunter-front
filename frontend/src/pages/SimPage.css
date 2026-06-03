@@ -213,3 +213,20 @@
   from { transform: translateX(-50%) translateY(20px); opacity: 0; }
   to   { transform: translateX(-50%) translateY(0);    opacity: 1; }
 }
+
+/* ── 단계 액션 버튼 ── */
+.phase-action-btn {
+  padding: 10px 24px; border-radius: 8px;
+  font-size: 14px; font-weight: 700; border: none;
+  cursor: pointer; font-family: var(--sans);
+  transition: all 0.15s; color: white;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.phase-action-btn--red {
+  background: white; color: var(--red);
+}
+.phase-action-btn--red:hover { background: #fff5f5; transform: translateY(-1px); }
+.phase-action-btn--blue {
+  background: white; color: var(--blue);
+}
+.phase-action-btn--blue:hover { background: #f0f4ff; transform: translateY(-1px); }

@@ -71,6 +71,7 @@ function ScriptToggle({ sessionId }) {
 export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }) {
   const [report,     setReport]     = useState(null);
   const [interrupts, setInterrupts] = useState([]);
+  const [answers,    setAnswers]    = useState([]);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState(null);
 
@@ -91,6 +92,12 @@ export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }
         if (intRes.ok) {
           const arr = await intRes.json();
           setInterrupts(Array.isArray(arr) ? arr : []);
+        }
+
+        const ansRes = await fetch(`${API}/api/v1/sessions/${sessionId}/answers`);
+        if (ansRes.ok) {
+          const arr = await ansRes.json();
+          setAnswers(Array.isArray(arr) ? arr : []);
         }
       } catch (e) {
         setError('데이터를 불러오지 못했습니다.');
@@ -255,15 +262,61 @@ export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }
               </>
             )}
 
-            {/* 인터럽트 로그 */}
+            {/* 질문 & 답변 기록 */}
             <div className="qa-card">
-              <div className="fb-title">돌발 질문 기록</div>
-              {interrupts.length === 0 ? (
+              <div className="fb-title">돌발 질문 & 답변 기록</div>
+              {answers.length === 0 && interrupts.length === 0 ? (
                 <div className="qa-empty">이 세션에서 돌발 질문이 없었습니다.</div>
-              ) : (
+              ) : answers.length > 0 ? (() => {
+                // parent_question_id 기준으로 그룹핑
+                const parentMap = {};
+                answers.forEach(a => {
+                  const pid = a.parent_question_id ?? a.question_id;
+                  if (!parentMap[pid]) parentMap[pid] = [];
+                  parentMap[pid].push(a);
+                });
+                let qNum = 0;
+                return Object.entries(parentMap).map(([pid, group]) => {
+                  qNum++;
+                  return (
+                    <div key={pid} style={{ marginBottom: 16 }}>
+                      {group.map((a, subIdx) => {
+                        const label = subIdx === 0 ? `Q${qNum}` : `Q${qNum}-${subIdx}`;
+                        const isFollowUp = subIdx > 0;
+                        return (
+                          <div key={a.question_id ?? subIdx} className="qa-item" style={{
+                            borderLeft: isFollowUp ? '3px solid var(--amber)' : '3px solid var(--red)',
+                            marginBottom: 8,
+                          }}>
+                            <div className="qa-num" style={{ color: isFollowUp ? 'var(--amber)' : 'var(--red)' }}>
+                              {label} {isFollowUp ? '꼬리질문' : ''}
+                              {a.answer_score != null && (
+                                <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--ink3)', fontWeight: 400 }}>
+                                  답변 점수: {Math.round(a.answer_score)}
+                                </span>
+                              )}
+                            </div>
+                            <div className="qa-text" style={{ marginBottom: 6 }}>{a.question_text}</div>
+                            {a.answer_text && (
+                              <div style={{
+                                background: 'var(--bg2)', borderRadius: 6,
+                                padding: '8px 12px', fontSize: 12,
+                                color: 'var(--ink2)', lineHeight: 1.6,
+                              }}>
+                                <span style={{ fontWeight: 600, color: 'var(--blue)', marginRight: 6 }}>답변</span>
+                                {a.answer_text}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                });
+              })() : (
                 interrupts.map((item, i) => (
                   <div className="qa-item" key={i}>
-                    <div className="qa-num">질문 {i + 1}</div>
+                    <div className="qa-num">Q{i + 1}</div>
                     <div className="qa-text">{item.question_text ?? item}</div>
                   </div>
                 ))

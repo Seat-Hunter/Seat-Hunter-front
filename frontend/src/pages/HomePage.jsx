@@ -113,11 +113,6 @@ export default function HomePage({ token, onLogin, onLogout, onSetup, onHistory 
           <div className="logo-icon">{LOGO}</div>
           <span className="logo-text">SpeechLab</span>
         </div>
-        <div className="nav-links">
-          <button className="nav-a on">홈</button>
-          <button className="nav-a" onClick={() => document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth' })}>환경</button>
-          <button className="nav-a" onClick={() => { setTab('feat'); document.getElementById('home-tabs')?.scrollIntoView({ behavior: 'smooth' }); }}>기능</button>
-        </div>
         <div className="nav-right">
           {token ? (
             <>
