@@ -203,14 +203,12 @@ export default function SimPage({ simState, onStop, onCancel }) {
       if (FILLERS.includes(clean)) fillerCountRef.current++;
     });
 
-    if (isDemoRef.current) {
-      const allWords = transcriptRef.current.split(/\s+/).slice(-60);
-      const parsed = allWords.map(w => {
-        const clean = w.replace(/[^가-힣a-z]/gi, '');
-        return { text: w, isFiller: FILLERS.includes(clean) };
-      });
-      setTranscriptWords(parsed);
-    }
+    const allWords = transcriptRef.current.split(/\s+/).slice(-60);
+    const parsed = allWords.map(w => {
+      const clean = w.replace(/[^가-힣a-z]/gi, '');
+      return { text: w, isFiller: FILLERS.includes(clean) };
+    });
+    setTranscriptWords(parsed);
     setFillerCount(fillerCountRef.current);
 
     const elapsedMin = (Date.now() - startTimeRef.current) / 60000;
