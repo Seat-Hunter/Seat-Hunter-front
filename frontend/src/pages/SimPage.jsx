@@ -115,7 +115,6 @@ export default function SimPage({ simState, onStop, onCancel }) {
   const interruptLogRef      = useRef([]);
   const interruptPendingRef  = useRef(false);
   const interruptCooldownRef = useRef(false);
-  const recognitionRef       = useRef(null);
   const demoTimerRef         = useRef(null);
   const demoIdxRef           = useRef(0);
   const timerIntervalRef     = useRef(null);
@@ -236,7 +235,6 @@ export default function SimPage({ simState, onStop, onCancel }) {
     interruptPendingRef.current  = false;
     interruptCooldownRef.current = false;
     clearInterval(timerIntervalRef.current);
-    if (recognitionRef.current) recognitionRef.current.stop();
     if (demoTimerRef.current)   clearInterval(demoTimerRef.current);
     if (wsRef.current)          wsRef.current.close();
     if (audioRef.current)       { audioRef.current.pause(); audioRef.current = null; }
@@ -371,9 +369,17 @@ export default function SimPage({ simState, onStop, onCancel }) {
           if (stoppedRef.current) return;
           switch (msg.type) {
 
+            case 'partial_transcript':
+              // Deepgram interim — 회색 미리보기
+              if (msg.text && !answerMicActiveRef.current) setInterimText(msg.text);
+              break;
+
             case 'final_transcript':
-              // 백엔드 확정 자막 — 자막 표시는 Web Speech final이 담당
-              // WPM/필러는 live_metrics로 수신
+              // Deepgram 확정 자막 — 화면 표시의 단일 소스
+              if (msg.text) {
+                setInterimText('');
+                processNewText(msg.text);
+              }
               break;
 
             case 'live_metrics':
@@ -531,60 +537,14 @@ export default function SimPage({ simState, onStop, onCancel }) {
       }
     }, 1000);
 
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SR) {
-      const r = new SR();
-      r.lang = 'ko-KR';
-      r.continuous = true;
-      r.interimResults = true;
-      recognitionRef.current = r;
-      r.onresult = (e) => {
-        let final = '';
-        let interim = '';
-        for (let i = e.resultIndex; i < e.results.length; i++) {
-          if (e.results[i].isFinal) final += e.results[i][0].transcript + ' ';
-          else interim += e.results[i][0].transcript;
-        }
-        if (final) {
-          // Web Speech final → 밝은색 확정 자막 + 백엔드 전송
-          setInterimText('');
-          processNewText(final);
-        } else if (interim) {
-          // interim → 어두운색 임시 자막 + 실시간 WPM/필러 로컬 계산
-          setInterimText(interim);
-
-          // 실시간 WPM 계산 (interim 기준)
-          const allText = transcriptRef.current + interim;
-          const totalWords = allText.trim().split(/\s+/).filter(Boolean).length;
-          const elapsedMin = (Date.now() - startTimeRef.current) / 60000;
-          if (elapsedMin > 0) setWpm(Math.round(totalWords / elapsedMin));
-
-          // 실시간 필러 계산 (interim 기준)
-          const interimWords = interim.trim().split(/\s+/);
-          const interimFillers = interimWords.filter(w => {
-            const clean = w.replace(/[^가-힣a-z]/gi, '');
-            return FILLERS.includes(clean);
-          }).length;
-          setFillerCount(fillerCountRef.current + interimFillers);
-        }
-      };
-      r.onerror = () => { if (!demoMode) console.warn('[STT] 마이크 오류'); };
-      r.onend   = () => { if (!stoppedRef.current && !demoMode) r.start(); };
-      if (demoMode) {
-        r.abort?.();
-        startDemo();
-      } else {
-        r.start();
-      }
-    } else {
+    if (demoMode) {
       startDemo();
     }
 
     return () => {
       stoppedRef.current = true;
       clearInterval(timerIntervalRef.current);
-      if (recognitionRef.current) recognitionRef.current.stop();
-      if (demoTimerRef.current)   clearInterval(demoTimerRef.current);
+        if (demoTimerRef.current)   clearInterval(demoTimerRef.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -825,8 +785,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
                 if (window.confirm('발표를 취소할까요? 기록이 저장되지 않습니다.')) {
                   stoppedRef.current = true;
                   clearInterval(timerIntervalRef.current);
-                  if (recognitionRef.current) recognitionRef.current.stop();
-                  if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+                                if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
                   if (wsRef.current) wsRef.current.close();
                   onCancel();
                 }
