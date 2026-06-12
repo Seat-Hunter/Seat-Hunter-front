@@ -86,7 +86,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
 
   // ── UI state
   const [elapsed, setElapsed]                 = useState(0);
-  const [wpm, setWpm]                         = useState(0);
+  const [cpm, setCpm]                         = useState(0);
   const [fillerCount, setFillerCount]         = useState(0);
   const [interruptCount, setInterruptCount]   = useState(0);
   const [interruptLog, setInterruptLog]       = useState([]);
@@ -110,8 +110,9 @@ export default function SimPage({ simState, onStop, onCancel }) {
   const startTimeRef         = useRef(Date.now());
   const transcriptRef        = useRef('');
   const wordCountRef         = useRef(0);
+  const charCountRef         = useRef(0);
   const fillerCountRef       = useRef(0);
-  const wpmHistoryRef        = useRef([]);
+  const cpmHistoryRef        = useRef([]);
   const interruptLogRef      = useRef([]);
   const interruptPendingRef  = useRef(false);
   const interruptCooldownRef = useRef(false);
@@ -178,6 +179,11 @@ export default function SimPage({ simState, onStop, onCancel }) {
   onStopRef.current      = onStop;
   interruptOnRef.current = interruptOn;
 
+  // 백엔드 live_metrics(Deepgram 기반 CPM)를 받을 수 없는 상태 — 데모 모드 또는 WS 미연결
+  function usingLocalCpmFallback() {
+    return isDemoRef.current || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN;
+  }
+
   // ── 텍스트 처리
   function processNewText(text) {
     if (isTtsPlayingRef.current) return; // TTS 재생 중 차단
@@ -197,6 +203,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
 
     const words = text.trim().split(/\s+/);
     wordCountRef.current += words.length;
+    charCountRef.current += text.replace(/\s+/g, '').length;
 
     words.forEach(w => {
       const clean = w.replace(/[^가-힣a-z]/gi, '');
@@ -214,14 +221,14 @@ export default function SimPage({ simState, onStop, onCancel }) {
     setFillerCount(fillerCountRef.current);
 
     const elapsedMin = (Date.now() - startTimeRef.current) / 60000;
-    const currentWpm = elapsedMin > 0 ? Math.round(wordCountRef.current / elapsedMin) : 0;
-    wpmHistoryRef.current.push(currentWpm);
-    setWpm(currentWpm);
+    const currentCpm = elapsedMin > 0 ? Math.round(charCountRef.current / elapsedMin) : 0;
+    cpmHistoryRef.current.push(currentCpm);
+    if (usingLocalCpmFallback()) setCpm(currentCpm);
 
     if (!isDemoRef.current && (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)) {
-      if (currentWpm > 80 && currentWpm < 160 && fillerCountRef.current < 5) {
+      if (currentCpm > 320 && currentCpm < 480 && fillerCountRef.current < 5) {
         applyMoodRef.current('nodding');
-      } else if (currentWpm > 160 || fillerCountRef.current > 8) {
+      } else if (currentCpm > 480 || fillerCountRef.current > 8) {
         applyMoodRef.current('cold');
       } else {
         applyMoodRef.current('interested');
@@ -255,7 +262,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
       transcript:   transcriptRef.current,
       wordCount:    wordCountRef.current,
       fillerCount:  fillerCountRef.current,
-      wpmHistory:   wpmHistoryRef.current,
+      cpmHistory:   cpmHistoryRef.current,
       interruptLog: interruptLogRef.current,
     };
 
@@ -375,11 +382,11 @@ export default function SimPage({ simState, onStop, onCancel }) {
 
             case 'final_transcript':
               // 백엔드 확정 자막 — 자막 표시는 Web Speech final이 담당
-              // WPM/필러는 live_metrics로 수신
+              // CPM/필러는 live_metrics로 수신
               break;
 
             case 'live_metrics':
-              setWpm(msg.wpm ?? 0);
+              setCpm(msg.cpm ?? 0);
               setFillerCount(msg.filler_count ?? 0);
               break;
 
@@ -552,14 +559,14 @@ export default function SimPage({ simState, onStop, onCancel }) {
           setInterimText('');
           processNewText(final);
         } else if (interim) {
-          // interim → 어두운색 임시 자막 + 실시간 WPM/필러 로컬 계산
+          // interim → 어두운색 임시 자막 + 실시간 CPM/필러 로컬 계산
           setInterimText(interim);
 
-          // 실시간 WPM 계산 (interim 기준)
+          // 실시간 CPM 계산 (interim 기준)
           const allText = transcriptRef.current + interim;
-          const totalWords = allText.trim().split(/\s+/).filter(Boolean).length;
+          const totalChars = allText.replace(/\s+/g, '').length;
           const elapsedMin = (Date.now() - startTimeRef.current) / 60000;
-          if (elapsedMin > 0) setWpm(Math.round(totalWords / elapsedMin));
+          if (usingLocalCpmFallback() && elapsedMin > 0) setCpm(Math.round(totalChars / elapsedMin));
 
           // 실시간 필러 계산 (interim 기준)
           const interimWords = interim.trim().split(/\s+/);
@@ -607,8 +614,8 @@ export default function SimPage({ simState, onStop, onCancel }) {
   const isUrgent  = remaining < 30;
   const mm        = String(Math.floor(elapsed / 60));
   const ss        = String(elapsed % 60).padStart(2, '0');
-  const wpmPct    = Math.min(wpm / 200, 1) * 100;
-  const wpmColor  = wpm < 80 || wpm > 160 ? 'stat-val--red' : 'stat-val--green';
+  const cpmPct    = Math.min(cpm / 600, 1) * 100;
+  const cpmColor  = cpm < 320 || cpm > 480 ? 'stat-val--red' : 'stat-val--green';
 
   return (
     <div className="sim-page">
@@ -761,10 +768,10 @@ export default function SimPage({ simState, onStop, onCancel }) {
         <div className="hud-section">
           <div className="hud__title">실시간 지표</div>
           <div className="stat-block">
-            <div className={`stat-val ${wpmColor}`}>{wpm}</div>
-            <div className="stat-label">WPM · 말하기 속도</div>
-            <div className="wpm-bar-wrap">
-              <div className="wpm-bar" style={{ width: `${wpmPct}%` }} />
+            <div className={`stat-val ${cpmColor}`}>{cpm}</div>
+            <div className="stat-label">CPM · 말하기 속도</div>
+            <div className="cpm-bar-wrap">
+              <div className="cpm-bar" style={{ width: `${cpmPct}%` }} />
             </div>
           </div>
         </div>

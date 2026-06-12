@@ -54,11 +54,11 @@ function ScriptToggle({ sessionId }) {
   );
 }
 
-function calcLocalScore(fillerCount, interruptCount, avgWpm) {
+function calcLocalScore(fillerCount, interruptCount, avgCpm) {
   let s = 100;
   s -= fillerCount * 3;
   s -= Math.max(0, interruptCount - 1) * 5;
-  if (avgWpm < 60 || avgWpm > 180) s -= 15;
+  if (avgCpm < 320 || avgCpm > 480) s -= 15;
   return Math.max(10, Math.min(99, s));
 }
 
@@ -69,14 +69,14 @@ function scoreColor(score) {
 }
 
 export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
-  const { type, difficulty, elapsed, fillerCount, wpmHistory, interruptLog, sessionId } = simState;
+  const { type, difficulty, elapsed, fillerCount, cpmHistory, interruptLog, sessionId } = simState;
 
   const [reportData, setReportData]       = useState(null);
   const [backendReport, setBackendReport] = useState(null);
 
-  const avgWpm     = wpmHistory.length
-    ? Math.round(wpmHistory.reduce((a, b) => a + b, 0) / wpmHistory.length) : 0;
-  const localScore = calcLocalScore(fillerCount, interruptLog.length, avgWpm);
+  const avgCpm     = cpmHistory.length
+    ? Math.round(cpmHistory.reduce((a, b) => a + b, 0) / cpmHistory.length) : 0;
+  const localScore = calcLocalScore(fillerCount, interruptLog.length, avgCpm);
   const score      = backendReport?.overall_score ?? localScore;
   const recoveryScore = backendReport?.recovery_score ?? null;
 
@@ -118,7 +118,7 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const displayAvgWpm     = backendReport?.avg_wpm         ?? avgWpm;
+  const displayAvgCpm     = backendReport?.avg_cpm         ?? avgCpm;
   const displayFiller     = backendReport?.filler_count    ?? fillerCount;
   const displayInterrupts = backendReport?.interrupt_count ?? interruptLog.length;
 
@@ -161,8 +161,8 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
         {/* 지표 */}
         <div className="metrics-row">
           <div className="metric-card">
-            <div className="metric-num" style={{ color: 'var(--blue)' }}>{displayAvgWpm}</div>
-            <div className="metric-label">평균 WPM</div>
+            <div className="metric-num" style={{ color: 'var(--blue)' }}>{displayAvgCpm}</div>
+            <div className="metric-label">평균 CPM</div>
           </div>
           <div className="metric-card">
             <div className="metric-num" style={{ color: displayFiller >= 5 ? 'var(--red)' : 'var(--green)' }}>{displayFiller}</div>

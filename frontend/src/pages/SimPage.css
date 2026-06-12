@@ -103,8 +103,8 @@
 
 .stat-label { font-size: 11px; color: var(--ink3); margin-top: 4px; }
 
-.wpm-bar-wrap { height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-top: 8px; }
-.wpm-bar { height: 100%; background: var(--blue); border-radius: 2px; transition: width 0.5s ease; }
+.cpm-bar-wrap { height: 3px; background: var(--bg3); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+.cpm-bar { height: 100%; background: var(--blue); border-radius: 2px; transition: width 0.5s ease; }
 
 /* 라이브 피드백 */
 .live-feedback {

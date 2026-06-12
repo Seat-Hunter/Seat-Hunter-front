@@ -12,7 +12,7 @@ const INITIAL_SIM = {
   type: 'interview', audience: 'boss', audienceCount: 4,
   difficulty: 'medium', duration: 3, interrupt: true, script: '',
   elapsed: 0, transcript: '', wordCount: 0, fillerCount: 0,
-  wpmHistory: [], interruptLog: [], sessionId: null,
+  cpmHistory: [], interruptLog: [], sessionId: null,
 };
 
 // sim 중 뒤로가기는 막음 (발표 중 실수 방지)

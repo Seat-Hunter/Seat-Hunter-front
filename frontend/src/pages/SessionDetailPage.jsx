@@ -168,8 +168,8 @@ export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }
             {report && (
               <div className="detail-metrics">
                 <div className="dm-card">
-                  <div className="dm-val" style={{ color: 'var(--blue)' }}>{Math.round(report.avg_wpm ?? 0)}</div>
-                  <div className="dm-label">평균 WPM</div>
+                  <div className="dm-val" style={{ color: 'var(--blue)' }}>{Math.round(report.avg_cpm ?? 0)}</div>
+                  <div className="dm-label">평균 CPM</div>
                 </div>
                 <div className="dm-card">
                   <div className="dm-val" style={{ color: (report.filler_count ?? 0) >= 5 ? 'var(--red)' : 'var(--green)' }}>

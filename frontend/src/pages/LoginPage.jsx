@@ -4,7 +4,7 @@ import './LoginPage.css';
 const LOGO = <span style={{ fontSize: 14 }}>🙋</span>;
 
 const FEATURES = [
-  'Deepgram 기반 실시간 음성 인식 및 WPM 분석',
+  'Deepgram 기반 실시간 음성 인식 및 CPM 분석',
   'AI 청중 시뮬레이션 — 교수·투자자·면접관',
   '돌발 질문 인터럽트로 실전 반응력 강화',
   '세션 종료 후 AI 피드백 리포트 자동 생성',

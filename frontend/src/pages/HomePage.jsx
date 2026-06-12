@@ -61,25 +61,25 @@ export default function HomePage({ token, onLogin, onLogout, onSetup, onHistory 
   const SCENES = [
     {
       timer: '02:14',
-      score: 91, wpm: 138, filler: 1, interrupt: 2,
+      score: 91, cpm: 414, filler: 1, interrupt: 2,
       alert: { type: 'blue', icon: '🎙️', title: null, msg: '음성 인식 중...' },
       feedback: null,
     },
     {
       timer: '03:41',
-      score: 85, wpm: 112, filler: 3, interrupt: 2,
+      score: 85, cpm: 336, filler: 3, interrupt: 2,
       alert: { type: 'amber', icon: '⚠️', title: 'AI 실시간 피드백', msg: '필러 단어가 늘고 있습니다. 잠깐 멈추고 정리해보세요.' },
       feedback: null,
     },
     {
       timer: '05:08',
-      score: 93, wpm: 145, filler: 1, interrupt: 4,
+      score: 93, cpm: 435, filler: 1, interrupt: 4,
       alert: { type: 'blue', icon: '🎙️', title: null, msg: '음성 인식 중...' },
       feedback: null,
     },
     {
       timer: '07:22',
-      score: 78, wpm: 88, filler: 2, interrupt: 5,
+      score: 78, cpm: 264, filler: 2, interrupt: 5,
       alert: { type: 'amber', icon: '⚠️', title: 'AI 실시간 피드백', msg: '말하기 속도가 다소 빠릅니다. 도입부 속도를 조절해보세요.' },
       feedback: null,
     },
@@ -163,7 +163,7 @@ export default function HomePage({ token, onLogin, onLogout, onSetup, onHistory 
           <div className="sc-body">
             <div className="sc-metrics">
               <div className="sc-m"><div className="sc-m-label">종합 점수</div><div className="sc-m-val blue">{scene.score}</div></div>
-              <div className="sc-m"><div className="sc-m-label">WPM</div><div className="sc-m-val green">{scene.wpm}</div></div>
+              <div className="sc-m"><div className="sc-m-label">CPM</div><div className="sc-m-val green">{scene.cpm}</div></div>
               <div className="sc-m"><div className="sc-m-label">필러 단어</div><div className="sc-m-val amber">{scene.filler}</div></div>
               <div className="sc-m"><div className="sc-m-label">인터럽트</div><div className="sc-m-val" style={{color:'var(--ink2)'}}>{scene.interrupt}</div></div>
             </div>
