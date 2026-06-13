@@ -78,7 +78,8 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
     ? Math.round(wpmHistory.reduce((a, b) => a + b, 0) / wpmHistory.length) : 0;
   const localScore = calcLocalScore(fillerCount, interruptLog.length, avgWpm);
   const score      = backendReport?.overall_score ?? localScore;
-  const recoveryScore = backendReport?.recovery_score ?? null;
+  const responseScore = backendReport?.response_score ?? null;
+  const criteriaScores = backendReport?.criteria_scores ?? [];
 
   const mm   = String(Math.floor(elapsed / 60)).padStart(1, '0');
   const ss   = String(elapsed % 60).padStart(2, '0');
@@ -176,13 +177,33 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
             <div className="metric-num" style={{ color: 'var(--ink2)' }}>{mm}:{ss}</div>
             <div className="metric-label">발표 시간</div>
           </div>
-          {recoveryScore !== null && (
+          {responseScore !== null && (
             <div className="metric-card">
-              <div className="metric-num" style={{ color: 'var(--blue)' }}>{Math.round(recoveryScore)}</div>
-              <div className="metric-label">회복 점수</div>
+              <div className="metric-num" style={{ color: 'var(--blue)' }}>{Math.round(responseScore)}</div>
+              <div className="metric-label">대응 점수</div>
             </div>
           )}
         </div>
+
+        {/* 영역별 점수 */}
+        {criteriaScores.length > 0 && (
+          <div className="feedback-section">
+            <div className="feedback-section__title">영역별 점수</div>
+            <div className="criteria-scores">
+              {criteriaScores.map((c, i) => (
+                <div key={i} className="criteria-score-item">
+                  <div className="criteria-score-row">
+                    <span className="criteria-score-label">{c.label}</span>
+                    <span className="criteria-score-value" style={{ color: scoreColor(c.score) }}>{c.score}</span>
+                  </div>
+                  <div className="criteria-score-bar">
+                    <div className="criteria-score-fill" style={{ width: `${c.score}%`, background: scoreColor(c.score) }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* AI 피드백 */}
         {reportData === null ? (

@@ -110,6 +110,7 @@ export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }
   }, [sessionId]);
 
   const score = report?.overall_score ?? null;
+  const criteriaScores = report?.criteria_scores ?? [];
 
   return (
     <div className="detail-page">
@@ -183,9 +184,9 @@ export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }
                 </div>
                 <div className="dm-card">
                   <div className="dm-val" style={{ color: 'var(--blue)' }}>
-                    {report.recovery_score != null ? Math.round(report.recovery_score) : '—'}
+                    {report.response_score != null ? Math.round(report.response_score) : '—'}
                   </div>
-                  <div className="dm-label">회복 점수</div>
+                  <div className="dm-label">대응 점수</div>
                 </div>
               </div>
             )}
@@ -223,6 +224,26 @@ export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }
                 <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
                 <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6 }}>리포트가 아직 생성되지 않았습니다</div>
                 <div style={{ fontSize: 13, color: 'var(--ink2)' }}>세션이 종료되지 않았거나 분석 중입니다.</div>
+              </div>
+            )}
+
+            {/* 영역별 점수 */}
+            {criteriaScores.length > 0 && (
+              <div className="fb-card">
+                <div className="fb-title">영역별 점수</div>
+                <div className="criteria-scores">
+                  {criteriaScores.map((c, i) => (
+                    <div key={i} className="criteria-score-item">
+                      <div className="criteria-score-row">
+                        <span className="criteria-score-label">{c.label}</span>
+                        <span className="criteria-score-value" style={{ color: scoreColor(c.score) }}>{c.score}</span>
+                      </div>
+                      <div className="criteria-score-bar">
+                        <div className="criteria-score-fill" style={{ width: `${c.score}%`, background: scoreColor(c.score) }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

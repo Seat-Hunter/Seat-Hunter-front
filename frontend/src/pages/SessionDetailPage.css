@@ -30,6 +30,15 @@
 .ig-label { font-size: 11px; color: var(--ink3); margin-bottom: 3px; }
 .ig-val   { font-size: 13px; font-weight: 600; color: var(--ink); }
 
+/* 영역별 점수 */
+.criteria-scores { display: flex; flex-direction: column; gap: 14px; }
+.criteria-score-item { display: flex; flex-direction: column; gap: 6px; }
+.criteria-score-row { display: flex; justify-content: space-between; align-items: baseline; }
+.criteria-score-label { font-size: 13px; font-weight: 600; color: var(--ink2); }
+.criteria-score-value { font-family: var(--en); font-size: 14px; font-weight: 700; }
+.criteria-score-bar { height: 6px; border-radius: 4px; background: var(--bg2); overflow: hidden; }
+.criteria-score-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+
 /* 피드백 */
 .fb-card { background: white; border: 1px solid var(--border); border-radius: 10px; padding: 22px 24px; }
 .fb-title { font-size: 12px; font-weight: 700; color: var(--ink3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
