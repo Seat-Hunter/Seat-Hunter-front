@@ -481,6 +481,17 @@ export default function SimPage({ simState, onStop, onCancel }) {
               }, 1500);
               break;
 
+            case 'question_skipped':
+              if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
+              isTtsPlayingRef.current = false;
+              setAnswerMicActive(false);
+              answerMicActiveRef.current = false;
+              setBubbleVisible(false);
+              setBubbleText('');
+              setSessionPhase('presenting');
+              clearQuestionRef.current();
+              break;
+
             case 'session_state':
               console.log('[세션 상태]', msg.state);
               break;
