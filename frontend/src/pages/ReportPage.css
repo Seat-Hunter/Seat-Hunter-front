@@ -82,6 +82,27 @@
   font-size: 13px; line-height: 1.6; color: var(--ink2);
 }
 .qa-item__label { font-size: 11px; font-weight: 600; color: var(--red); margin-bottom: 4px; }
+.qa-item--follow-up {
+  border-left-color: var(--amber);
+  background: var(--amber-s);
+}
+.qa-item--follow-up .qa-item__label { color: var(--amber); }
+.qa-item__score {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--ink3);
+  font-weight: 500;
+}
+.qa-item__question {
+  margin-bottom: 8px;
+}
+.qa-item__answer {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  color: var(--ink2);
+}
 .qa-empty { font-size: 13px; color: var(--ink3); }
 
 /* 재시작 버튼 */

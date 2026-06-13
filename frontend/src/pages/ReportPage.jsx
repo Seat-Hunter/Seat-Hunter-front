@@ -6,11 +6,18 @@ const API = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
 const LOGO = <span style={{ fontSize: 14 }}>🙋</span>;
 
-function ScriptToggle({ sessionId }) {
+function ScriptToggle({ sessionId, initialScript = '' }) {
   const [open,    setOpen]    = useState(false);
-  const [script,  setScript]  = useState(null);
+  const [script,  setScript]  = useState(initialScript ? { full_script: initialScript } : null);
   const [loading, setLoading] = useState(false);
-  const [fetched, setFetched] = useState(false);
+  const [fetched, setFetched] = useState(Boolean(initialScript));
+
+  useEffect(() => {
+    if (initialScript && !fetched) {
+      setScript({ full_script: initialScript });
+      setFetched(true);
+    }
+  }, [initialScript, fetched]);
 
   async function handleToggle() {
     setOpen(prev => !prev);
@@ -68,15 +75,58 @@ function scoreColor(score) {
   return 'var(--red)';
 }
 
+function getQuestionNumberFromId(questionId) {
+  const match = String(questionId ?? '').match(/q_(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+function getQuestionLabel(item, fallbackNumber) {
+  if (item && typeof item === 'object') {
+    const parentNumber = getQuestionNumberFromId(item.parent_question_id ?? item.question_id) ?? fallbackNumber;
+    const isFollowUp = Boolean(item.isFollowUp ?? item.is_follow_up);
+    if (isFollowUp) {
+      const followUpNumber =
+        item.follow_up_count ??
+        Number(String(item.question_id ?? '').match(/follow_up_(\d+)/)?.[1]) ??
+        1;
+      return `${parentNumber}-${followUpNumber}`;
+    }
+    return `${parentNumber}`;
+  }
+  return `${fallbackNumber}`;
+}
+
+function normalizeQuestionLogItem(item, index) {
+  if (item && typeof item === 'object') {
+    return {
+      label: item.label ?? getQuestionLabel(item, index + 1),
+      text: item.text ?? item.question_text ?? '',
+      isFollowUp: Boolean(item.isFollowUp ?? item.is_follow_up),
+    };
+  }
+  return { label: `${index + 1}`, text: item, isFollowUp: false };
+}
+
+function normalizeAnswerItem(item, index) {
+  return {
+    label: getQuestionLabel(item, index + 1),
+    questionText: item.question_text ?? '',
+    answerText: item.answer_text ?? item.user_answer ?? '',
+    answerScore: item.answer_score,
+    isFollowUp: Boolean(item.is_follow_up),
+  };
+}
+
 export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
-  const { type, difficulty, elapsed, fillerCount, wpmHistory, interruptLog, sessionId } = simState;
+  const { type, difficulty, elapsed, fillerCount, wpmHistory, interruptLog, answerLog = [], sessionId } = simState;
 
   const [reportData, setReportData]       = useState(null);
   const [backendReport, setBackendReport] = useState(null);
 
   const avgWpm     = wpmHistory.length
     ? Math.round(wpmHistory.reduce((a, b) => a + b, 0) / wpmHistory.length) : 0;
-  const localScore = calcLocalScore(fillerCount, interruptLog.length, avgWpm);
+  const interruptBaseCount = interruptLog.filter(q => !normalizeQuestionLogItem(q, 0).isFollowUp).length;
+  const localScore = calcLocalScore(fillerCount, interruptBaseCount, avgWpm);
   const score      = backendReport?.overall_score ?? localScore;
   const responseScore = backendReport?.response_score ?? null;
   const criteriaScores = backendReport?.criteria_scores ?? [];
@@ -121,7 +171,10 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
 
   const displayAvgWpm     = backendReport?.avg_wpm         ?? avgWpm;
   const displayFiller     = backendReport?.filler_count    ?? fillerCount;
-  const displayInterrupts = backendReport?.interrupt_count ?? interruptLog.length;
+  const reportInterruptLog = backendReport?.interrupts?.length ? backendReport.interrupts : interruptLog;
+  const reportAnswers = backendReport?.answers?.length ? backendReport.answers : answerLog;
+  const reportScript = backendReport?.full_script ?? '';
+  const displayInterrupts = backendReport?.interrupt_count ?? reportInterruptLog.filter(q => !normalizeQuestionLogItem(q, 0).isFollowUp).length;
 
   return (
     <div className="report-page">
@@ -246,25 +299,52 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
         )}
 
         {/* 발표 대본 */}
-        {sessionId && <ScriptToggle sessionId={sessionId} />}
+        {sessionId && <ScriptToggle sessionId={sessionId} initialScript={reportScript} />}
 
         {/* 인터럽트 로그 */}
         <div className="feedback-section">
           <div className="feedback-section__title">돌발 질문 기록</div>
           <div className="qa-list">
-            {interruptLog.length === 0
+            {reportInterruptLog.length === 0
               ? <div className="qa-empty">이번 세션에서 돌발 질문이 없었습니다.</div>
-              : interruptLog.map((q, i) => (
-                  <div key={i} className="qa-item">
-                    <div className="qa-item__label">질문 {i + 1}</div>
-                    {q}
-                  </div>
-                ))
+              : reportInterruptLog.map((q, i) => {
+                  const item = normalizeQuestionLogItem(q, i);
+                  return (
+                    <div key={i} className={`qa-item${item.isFollowUp ? ' qa-item--follow-up' : ''}`}>
+                      <div className="qa-item__label">질문 {item.label}</div>
+                      {item.text}
+                    </div>
+                  );
+                })
             }
           </div>
         </div>
 
         {/* 하단 액션 */}
+        <div className="feedback-section">
+          <div className="feedback-section__title">질문 답변 기록</div>
+          <div className="qa-list">
+            {reportAnswers.length === 0
+              ? <div className="qa-empty">이번 세션에서 저장된 질문 답변이 없습니다.</div>
+              : reportAnswers.map((answer, i) => {
+                  const item = normalizeAnswerItem(answer, i);
+                  return (
+                    <div key={answer.question_id ?? i} className={`qa-item${item.isFollowUp ? ' qa-item--follow-up' : ''}`}>
+                      <div className="qa-item__label">
+                        질문 {item.label}
+                        {item.answerScore != null && (
+                          <span className="qa-item__score">답변 점수: {Math.round(item.answerScore)}</span>
+                        )}
+                      </div>
+                      <div className="qa-item__question">{item.questionText}</div>
+                      <div className="qa-item__answer">{item.answerText || '답변 내용 없음'}</div>
+                    </div>
+                  );
+                })
+            }
+          </div>
+        </div>
+
         <div style={{ display: 'flex', gap: 10 }}>
           {onHome    && <button className="btn-restart" onClick={onHome}>← 홈으로</button>}
           {onHistory && <button className="btn-restart" onClick={onHistory}>히스토리 보기</button>}
