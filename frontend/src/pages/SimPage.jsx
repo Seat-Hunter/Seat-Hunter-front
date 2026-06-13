@@ -150,6 +150,9 @@ export default function SimPage({ simState, onStop, onCancel }) {
   const [bubbleResolved, setBubbleResolved]   = useState(false);
   const [sessionPhase, setSessionPhase]       = useState('presenting');
   const [answerMicActive, setAnswerMicActive] = useState(false);
+  const [currentAnswerText, setCurrentAnswerText] = useState('');
+  const [latestAnswerEvaluation, setLatestAnswerEvaluation] = useState(null);
+  const [answerLog, setAnswerLog]             = useState([]);
   const [acceptCountdown, setAcceptCountdown] = useState(10);
   const [listenLabel, setListenLabel]         = useState('마이크 듣는 중...');
   const [isFinishing, setIsFinishing]         = useState(false);
@@ -166,6 +169,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
   const fillerCountRef       = useRef(0);
   const wpmHistoryRef        = useRef([]);
   const interruptLogRef      = useRef([]);
+  const answerLogRef         = useRef([]);
   const questionBaseCountRef = useRef(0);
   const bubbleTextRef        = useRef('');
   const interruptPendingRef  = useRef(false);
@@ -314,6 +318,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
       fillerCount:  fillerCountRef.current,
       wpmHistory:   wpmHistoryRef.current,
       interruptLog: interruptLogRef.current,
+      answerLog:    answerLogRef.current,
     };
 
     const finishAndShowReport = async () => {
@@ -481,6 +486,8 @@ export default function SimPage({ simState, onStop, onCancel }) {
 
             case 'interrupt_question':
               currentQuestionIdRef.current = msg.question_id;
+              setCurrentAnswerText('');
+              setLatestAnswerEvaluation(null);
               {
                 const fallbackNumber = msg.is_follow_up
                   ? Math.max(questionBaseCountRef.current, 1)
@@ -508,6 +515,24 @@ export default function SimPage({ simState, onStop, onCancel }) {
               isTtsPlayingRef.current = true;
               setSessionPhase('waiting_question'); // 질문 받기 버튼 표시
               applyQuestionRef.current();
+              break;
+
+            case 'tts_error':
+              if (msg.question_text) {
+                setBubbleText(msg.question_text);
+                setBubbleVisible(true);
+              }
+              if (msg.question_id) {
+                currentQuestionIdRef.current = msg.question_id;
+                setBubbleLabel(getQuestionLabel(
+                  msg,
+                  msg.is_follow_up ? Math.max(questionBaseCountRef.current, 1) : questionBaseCountRef.current + 1,
+                ));
+              }
+              isTtsPlayingRef.current = false;
+              setSessionPhase('waiting_answer');
+              setLiveFeedback(msg.message ?? '음성 질문 생성에 실패해 텍스트 질문으로 진행합니다.');
+              setTimeout(() => setLiveFeedback(null), 5000);
               break;
 
             case 'tts_audio': {
@@ -562,7 +587,38 @@ export default function SimPage({ simState, onStop, onCancel }) {
 
             case 'waiting_for_answer':
               // 백엔드가 tts_finished 후 보내는 신호 — 이미 waiting_answer 상태이므로 무시
+              if (msg.question_id) currentQuestionIdRef.current = msg.question_id;
+              setSessionPhase('waiting_answer');
               break;
+
+            case 'answer_partial_collected':
+              setCurrentAnswerText(msg.answer_so_far ?? msg.text ?? '');
+              break;
+
+            case 'answer_evaluated': {
+              const item = {
+                question_id: msg.question_id,
+                parent_question_id: msg.parent_question_id,
+                question_text: msg.question_text,
+                answer_text: msg.user_answer,
+                answer_score: msg.answer_score,
+                evaluation_reason: msg.evaluation_reason,
+                audience_reaction: msg.audience_reaction,
+                follow_up_needed: msg.follow_up_needed,
+                follow_up_question: msg.follow_up_question,
+                is_follow_up: msg.is_follow_up,
+                follow_up_count: msg.follow_up_count,
+                max_follow_ups: msg.max_follow_ups,
+              };
+              answerLogRef.current.push(item);
+              setAnswerLog([...answerLogRef.current]);
+              setLatestAnswerEvaluation(item);
+              setCurrentAnswerText('');
+              setAnswerMicActive(false);
+              answerMicActiveRef.current = false;
+              setSessionPhase(msg.follow_up_needed ? 'evaluating' : 'presenting');
+              break;
+            }
 
             case 'stop_tts':
               if (audioRef.current) { audioRef.current.pause(); audioRef.current = null; }
@@ -729,6 +785,8 @@ export default function SimPage({ simState, onStop, onCancel }) {
                 wsRef.current.send(JSON.stringify({ type: 'answer_started', question_id: currentQuestionIdRef.current }));
               setSessionPhase('answering');
               setAnswerMicActive(true);
+              setCurrentAnswerText('');
+              setLatestAnswerEvaluation(null);
             }}>🎙 답변하기</button>
           </div>
         )}
@@ -830,6 +888,36 @@ export default function SimPage({ simState, onStop, onCancel }) {
           {liveFeedback && <div className="live-feedback" style={{ marginTop: 10 }}>{liveFeedback}</div>}
         </div>
 
+        {(currentAnswerText || latestAnswerEvaluation) && (
+          <div className="hud-section">
+            <div className="hud__title">답변 상태</div>
+            {currentAnswerText && (
+              <div className="answer-preview">
+                <div className="answer-preview__label">수집 중</div>
+                {currentAnswerText}
+              </div>
+            )}
+            {latestAnswerEvaluation && (
+              <div className="answer-evaluation">
+                <div className="answer-evaluation__top">
+                  <span>답변 점수</span>
+                  <strong>{Math.round(latestAnswerEvaluation.answer_score ?? 0)}</strong>
+                </div>
+                {latestAnswerEvaluation.evaluation_reason && (
+                  <div className="answer-evaluation__reason">
+                    {latestAnswerEvaluation.evaluation_reason}
+                  </div>
+                )}
+                {latestAnswerEvaluation.follow_up_needed && latestAnswerEvaluation.follow_up_question && (
+                  <div className="answer-evaluation__follow">
+                    꼬리질문 준비 중: {latestAnswerEvaluation.follow_up_question}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="hud-section">
           <div className="hud__title">실시간 지표</div>
           <div className="stat-block">
@@ -896,6 +984,23 @@ export default function SimPage({ simState, onStop, onCancel }) {
                   </div>
                 );
               })}
+            </div>
+          </div>
+        )}
+
+        {answerLog.length > 0 && (
+          <div className="hud-section">
+            <div className="hud__title">답변 기록</div>
+            <div className="answer-log">
+              {answerLog.map((a, i) => (
+                <div key={a.question_id ?? i} className="answer-log__item">
+                  <div className="answer-log__meta">
+                    Q{getQuestionLabel(a, i + 1)}
+                    {a.answer_score != null && <span>{Math.round(a.answer_score)}점</span>}
+                  </div>
+                  <div className="answer-log__text">{a.answer_text || '답변 내용 없음'}</div>
+                </div>
+              ))}
             </div>
           </div>
         )}

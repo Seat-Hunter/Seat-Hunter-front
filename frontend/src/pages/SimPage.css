@@ -116,6 +116,81 @@
   font-size: 12px; color: var(--ink2); line-height: 1.5;
 }
 
+/* 답변 상태 */
+.answer-preview,
+.answer-evaluation,
+.answer-log__item {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink2);
+}
+
+.answer-preview {
+  background: var(--blue-s);
+  border-left: 3px solid var(--blue);
+}
+
+.answer-preview__label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue);
+  margin-bottom: 4px;
+}
+
+.answer-evaluation {
+  background: var(--bg2);
+  margin-top: 8px;
+}
+
+.answer-evaluation__top,
+.answer-log__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--ink3);
+}
+
+.answer-evaluation__top strong {
+  color: var(--blue);
+  font-size: 18px;
+}
+
+.answer-evaluation__reason {
+  margin-top: 6px;
+}
+
+.answer-evaluation__follow {
+  margin-top: 8px;
+  color: var(--amber);
+  font-weight: 600;
+}
+
+.answer-log {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+
+.answer-log__item {
+  background: var(--bg2);
+}
+
+.answer-log__meta span {
+  color: var(--blue);
+}
+
+.answer-log__text {
+  margin-top: 4px;
+}
+
 /* 트랜스크립트 */
 .transcript-box {
   background: var(--bg2); border: 1px solid var(--border); border-radius: 7px;

@@ -118,7 +118,7 @@ function normalizeAnswerItem(item, index) {
 }
 
 export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
-  const { type, difficulty, elapsed, fillerCount, wpmHistory, interruptLog, sessionId } = simState;
+  const { type, difficulty, elapsed, fillerCount, wpmHistory, interruptLog, answerLog = [], sessionId } = simState;
 
   const [reportData, setReportData]       = useState(null);
   const [backendReport, setBackendReport] = useState(null);
@@ -171,7 +171,7 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
   const displayAvgWpm     = backendReport?.avg_wpm         ?? avgWpm;
   const displayFiller     = backendReport?.filler_count    ?? fillerCount;
   const reportInterruptLog = backendReport?.interrupts?.length ? backendReport.interrupts : interruptLog;
-  const reportAnswers = backendReport?.answers ?? [];
+  const reportAnswers = backendReport?.answers?.length ? backendReport.answers : answerLog;
   const reportScript = backendReport?.full_script ?? '';
   const displayInterrupts = backendReport?.interrupt_count ?? reportInterruptLog.filter(q => !normalizeQuestionLogItem(q, 0).isFollowUp).length;
 
