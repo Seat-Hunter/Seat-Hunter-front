@@ -14,6 +14,26 @@ function scoreColor(s) {
   return 'var(--red)';
 }
 
+function getQuestionNumberFromId(questionId) {
+  const match = String(questionId ?? '').match(/q_(\d+)/);
+  return match ? Number(match[1]) : null;
+}
+
+function getQuestionLabel(item, fallbackNumber) {
+  if (item && typeof item === 'object') {
+    const parentNumber = getQuestionNumberFromId(item.parent_question_id ?? item.question_id) ?? fallbackNumber;
+    if (item.is_follow_up) {
+      const followUpNumber =
+        item.follow_up_count ??
+        Number(String(item.question_id ?? '').match(/follow_up_(\d+)/)?.[1]) ??
+        1;
+      return `${parentNumber}-${followUpNumber}`;
+    }
+    return `${parentNumber}`;
+  }
+  return `${fallbackNumber}`;
+}
+
 function ScriptToggle({ sessionId }) {
   const [open,     setOpen]     = useState(false);
   const [script,   setScript]   = useState(null);
@@ -314,12 +334,17 @@ export default function SessionDetailPage({ sessionId, onBack, onHome, onSetup }
                   );
                 });
               })() : (
-                interrupts.map((item, i) => (
-                  <div className="qa-item" key={i}>
-                    <div className="qa-num">Q{i + 1}</div>
-                    <div className="qa-text">{item.question_text ?? item}</div>
-                  </div>
-                ))
+                interrupts.map((item, i) => {
+                  const isFollowUp = Boolean(item?.is_follow_up);
+                  return (
+                    <div className="qa-item" key={i}>
+                      <div className="qa-num" style={{ color: isFollowUp ? 'var(--amber)' : 'var(--red)' }}>
+                        Q{getQuestionLabel(item, i + 1)}
+                      </div>
+                      <div className="qa-text">{item.question_text ?? item}</div>
+                    </div>
+                  );
+                })
               )}
             </div>
 
