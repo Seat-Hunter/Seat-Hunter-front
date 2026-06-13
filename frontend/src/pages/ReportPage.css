@@ -56,6 +56,15 @@
 .feedback-list--weakness  li::before { content: '▸'; color: var(--red);   position: absolute; left: 0; }
 .feedback-list--improvement li::before { content: '▸'; color: var(--blue);  position: absolute; left: 0; }
 
+/* 영역별 점수 */
+.criteria-scores { display: flex; flex-direction: column; gap: 14px; }
+.criteria-score-item { display: flex; flex-direction: column; gap: 6px; }
+.criteria-score-row { display: flex; justify-content: space-between; align-items: baseline; }
+.criteria-score-label { font-size: 13px; font-weight: 600; color: var(--ink2); }
+.criteria-score-value { font-family: var(--en); font-size: 14px; font-weight: 700; }
+.criteria-score-bar { height: 6px; border-radius: 4px; background: var(--bg2); overflow: hidden; }
+.criteria-score-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+
 /* 커리큘럼 */
 .feedback-section--curriculum {
   background: var(--blue-s);
