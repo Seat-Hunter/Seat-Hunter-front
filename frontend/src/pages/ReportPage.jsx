@@ -73,6 +73,7 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
 
   const [reportData, setReportData]       = useState(null);
   const [backendReport, setBackendReport] = useState(null);
+  const [answers, setAnswers]             = useState([]);
 
   const avgWpm     = wpmHistory.length
     ? Math.round(wpmHistory.reduce((a, b) => a + b, 0) / wpmHistory.length) : 0;
@@ -118,6 +119,14 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
       .finally(() => setIsGenerating(false));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    fetch(`${API}/api/v1/sessions/${sessionId}/answers`)
+      .then(r => r.ok ? r.json() : [])
+      .then(arr => setAnswers(Array.isArray(arr) ? arr : []))
+      .catch(() => setAnswers([]));
+  }, [sessionId]);
 
   const displayAvgWpm     = backendReport?.avg_wpm         ?? avgWpm;
   const displayFiller     = backendReport?.filler_count    ?? fillerCount;
@@ -250,17 +259,59 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
 
         {/* 인터럽트 로그 */}
         <div className="feedback-section">
-          <div className="feedback-section__title">돌발 질문 기록</div>
+          <div className="feedback-section__title">돌발 질문 & 답변 기록</div>
           <div className="qa-list">
-            {interruptLog.length === 0
-              ? <div className="qa-empty">이번 세션에서 돌발 질문이 없었습니다.</div>
-              : interruptLog.map((q, i) => (
-                  <div key={i} className="qa-item">
-                    <div className="qa-item__label">질문 {i + 1}</div>
-                    {q}
+            {answers.length > 0 ? (() => {
+              // parent_question_id 기준으로 그룹핑
+              const parentMap = {};
+              answers.forEach(a => {
+                const pid = a.parent_question_id ?? a.question_id;
+                if (!parentMap[pid]) parentMap[pid] = [];
+                parentMap[pid].push(a);
+              });
+              let qNum = 0;
+              return Object.entries(parentMap).map(([pid, group]) => {
+                qNum++;
+                return (
+                  <div key={pid} style={{ marginBottom: 16 }}>
+                    {group.map((a, subIdx) => {
+                      const label = subIdx === 0 ? `Q${qNum}` : `Q${qNum}-${subIdx}`;
+                      const isFollowUp = subIdx > 0;
+                      return (
+                        <div key={a.question_id ?? subIdx} className="qa-item" style={{
+                          borderLeft: isFollowUp ? '3px solid var(--amber)' : '3px solid var(--red)',
+                          background: isFollowUp ? 'var(--amber-s)' : 'var(--red-s)',
+                          marginBottom: 8,
+                        }}>
+                          <div className="qa-item__label" style={{ color: isFollowUp ? 'var(--amber)' : 'var(--red)' }}>
+                            {label} {isFollowUp ? '꼬리질문' : ''}
+                            {a.answer_score != null && (
+                              <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--ink3)', fontWeight: 400 }}>
+                                답변 점수: {Math.round(a.answer_score)}
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ marginBottom: 6 }}>{a.question_text}</div>
+                          {a.answer_text && (
+                            <div style={{ background: 'white', borderRadius: 6, padding: '8px 12px', fontSize: 12, color: 'var(--ink2)', lineHeight: 1.6 }}>
+                              <span style={{ fontWeight: 600, color: 'var(--blue)', marginRight: 6 }}>답변</span>
+                              {a.answer_text}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
-                ))
-            }
+                );
+              });
+            })() : interruptLog.length === 0 ? (
+              <div className="qa-empty">이번 세션에서 돌발 질문이 없었습니다.</div>
+            ) : interruptLog.map((q, i) => (
+              <div key={i} className="qa-item">
+                <div className="qa-item__label">질문 {i + 1}</div>
+                {q}
+              </div>
+            ))}
           </div>
         </div>
 
