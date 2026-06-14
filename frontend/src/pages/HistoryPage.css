@@ -1,0 +1,119 @@
+/* HistoryPage.css */
+.history-page { display: flex; flex-direction: column; min-height: 100vh; background: var(--bg); }
+.history-wrap { max-width: 800px; margin: 0 auto; padding: 48px 40px 80px; width: 100%; }
+
+.history-header {
+  display: flex; align-items: flex-start;
+  justify-content: space-between; margin-bottom: 32px;
+}
+.history-h   { font-size: 26px; font-weight: 900; letter-spacing: -0.4px; color: var(--ink); margin-bottom: 4px; }
+.history-sub { font-size: 13px; color: var(--ink2); }
+
+.stats-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; }
+.stat-c { border: 1px solid var(--border); border-radius: 8px; padding: 16px; background: white; text-align: center; }
+.sc-v { font-family: var(--en); font-size: 28px; font-weight: 700; color: var(--ink); line-height: 1; }
+.sc-v.blue  { color: var(--blue); }
+.sc-v.green { color: var(--green); }
+.sc-l { font-size: 11px; color: var(--ink3); margin-top: 4px; font-weight: 500; }
+
+/* 리스트 */
+.history-list { display: flex; flex-direction: column; gap: 8px; margin: 24px 0; }
+.hi {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px; background: white;
+  border: 1px solid var(--border); border-radius: 10px;
+  cursor: pointer; transition: all 0.1s;
+}
+.hi:hover { border-color: var(--blue); box-shadow: 0 2px 8px rgba(37,99,235,0.07); }
+.hi-num  { font-family: var(--en); font-size: 12px; font-weight: 600; color: var(--ink3); min-width: 24px; }
+.hi-info { flex: 1; min-width: 0; }
+.hi-title { font-size: 13px; font-weight: 600; color: var(--ink); margin-bottom: 2px; }
+.hi-meta  { font-size: 11px; color: var(--ink3); }
+.hi-score {
+  font-family: var(--en); font-size: 20px; font-weight: 700;
+  padding: 5px 12px; border-radius: 7px; min-width: 52px; text-align: center;
+}
+.hs-g { background: var(--green-s); color: var(--green); }
+.hs-b { background: var(--blue-s);  color: var(--blue); }
+.hs-a { background: var(--amber-s); color: var(--amber); }
+.hi-badge {
+  font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 4px;
+  background: var(--bg2); color: var(--ink3); border: 1px solid var(--border); white-space: nowrap;
+}
+.hi-badge.best { background: var(--green-s); color: var(--green); border-color: rgba(5,150,105,0.2); }
+
+/* 빈 상태 */
+.history-empty {
+  text-align: center; padding: 56px 20px;
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; margin: 24px 0;
+}
+.he-icon  { font-size: 40px; margin-bottom: 12px; }
+.he-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.he-desc  { font-size: 13px; color: var(--ink2); margin-bottom: 20px; }
+
+/* ── 꺾은선 그래프 ── */
+.chart-wrap {
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 24px 12px;
+  margin: 8px 0;
+}
+.chart-title {
+  font-size: 12px; font-weight: 700; color: var(--ink3);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+.chart-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ── 필터 바 ── */
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 18px;
+}
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.filter-label {
+  font-size: 11px; font-weight: 700;
+  color: var(--ink3); white-space: nowrap;
+}
+.filter-chips {
+  display: flex; gap: 5px; flex-wrap: wrap;
+}
+.filter-chip {
+  padding: 4px 11px; border-radius: 6px;
+  font-size: 12px; font-weight: 500;
+  color: var(--ink2); background: var(--bg2);
+  border: 1px solid var(--border);
+  cursor: pointer; font-family: var(--sans);
+  transition: all 0.1s; white-space: nowrap;
+}
+.filter-chip:hover { border-color: var(--blue); color: var(--blue); }
+.filter-chip.on {
+  background: var(--blue); color: white;
+  border-color: var(--blue); font-weight: 600;
+}
+
+/* 삭제 버튼 */
+.hi-del {
+  background: none; border: none; cursor: pointer;
+  font-size: 14px; padding: 4px 6px; border-radius: 5px;
+  color: var(--ink3); opacity: 0; transition: all 0.15s;
+  flex-shrink: 0;
+}
+.hi:hover .hi-del { opacity: 1; }
+.hi-del:hover { background: var(--red-s); color: var(--red); }

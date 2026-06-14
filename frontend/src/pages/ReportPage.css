@@ -1,166 +1,147 @@
-/* ── ReportPage.css ── */
-
 .report-page {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 60px 40px;
-  max-width: 860px;
+  background: var(--bg);
+}
+
+.report-inner {
+  max-width: 760px;
   margin: 0 auto;
+  padding: 48px 40px 80px;
   width: 100%;
-  gap: 32px;
-}
-
-/* ── Header ── */
-.report-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 24px;
-}
-
-.report-title {
-  font-family: var(--display);
-  font-size: 48px;
-  letter-spacing: 3px;
-  color: var(--text);
-  line-height: 1;
-}
-
-.report-meta {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-  margin-top: 8px;
-}
-
-.score-badge {
-  font-family: var(--display);
-  font-size: 72px;
-  letter-spacing: 2px;
-  line-height: 1;
-  text-align: right;
-}
-
-.score-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 3px;
-  color: var(--muted);
-  text-align: right;
-}
-
-/* ── Metrics row ── */
-.metrics-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
-
-.metric-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 20px;
-  border-radius: 4px;
-}
-
-.metric-num {
-  font-family: var(--display);
-  font-size: 36px;
-  letter-spacing: 2px;
-  line-height: 1;
-}
-
-.metric-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--muted);
-  margin-top: 4px;
-}
-
-/* ── Feedback section ── */
-.feedback-section {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 28px;
-}
-
-.feedback-section__title {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 3px;
-  color: var(--muted);
-  text-transform: uppercase;
-  margin-bottom: 16px;
-}
-
-.feedback-text {
-  font-size: 14px;
-  line-height: 1.8;
-  color: #ccc;
-  white-space: pre-wrap;
-}
-
-/* loading shimmer */
-.feedback-text--loading {
-  color: var(--muted);
-  animation: blink 1.2s ease-in-out infinite;
-}
-
-@keyframes blink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
-}
-
-/* ── QA list ── */
-.qa-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 20px;
 }
 
+/* 헤더 */
+.report-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.report-title { font-size: 26px; font-weight: 900; letter-spacing: -0.4px; color: var(--ink); margin-bottom: 4px; }
+.report-meta  { font-size: 12px; color: var(--ink3); }
+.score-badge  { font-family: var(--en); font-size: 56px; font-weight: 700; line-height: 1; text-align: right; }
+.score-label  { font-size: 11px; color: var(--ink3); text-align: right; margin-top: 2px; }
+
+/* 지표 카드 */
+.metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.metric-card {
+  background: white; border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px;
+}
+.metric-num   { font-family: var(--en); font-size: 28px; font-weight: 700; line-height: 1; }
+.metric-label { font-size: 11px; color: var(--ink3); margin-top: 4px; }
+
+/* 피드백 섹션 */
+.feedback-section {
+  background: white; border: 1px solid var(--border);
+  border-radius: 10px; padding: 22px 24px;
+}
+.feedback-section__title {
+  font-size: 12px; font-weight: 700; color: var(--ink3);
+  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px;
+}
+.feedback-text { font-size: 14px; line-height: 1.8; color: var(--ink2); }
+.feedback-text--loading { color: var(--ink3); animation: blink 1.2s infinite; }
+
+/* 피드백 리스트 */
+.feedback-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 8px; }
+.feedback-list li { font-size: 14px; line-height: 1.65; color: var(--ink2); padding-left: 16px; position: relative; }
+.feedback-list--strength  li::before { content: '▸'; color: var(--green); position: absolute; left: 0; }
+.feedback-list--weakness  li::before { content: '▸'; color: var(--red);   position: absolute; left: 0; }
+.feedback-list--improvement li::before { content: '▸'; color: var(--blue);  position: absolute; left: 0; }
+
+/* 영역별 점수 */
+.criteria-scores { display: flex; flex-direction: column; gap: 14px; }
+.criteria-score-item { display: flex; flex-direction: column; gap: 6px; }
+.criteria-score-row { display: flex; justify-content: space-between; align-items: baseline; }
+.criteria-score-label { font-size: 13px; font-weight: 600; color: var(--ink2); }
+.criteria-score-value { font-family: var(--en); font-size: 14px; font-weight: 700; }
+.criteria-score-bar { height: 6px; border-radius: 4px; background: var(--bg2); overflow: hidden; }
+.criteria-score-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+
+/* 커리큘럼 */
+.feedback-section--curriculum {
+  background: var(--blue-s);
+  border-color: rgba(37,99,235,0.2);
+}
+.curriculum-text { font-size: 14px; line-height: 1.65; color: var(--blue); font-weight: 500; }
+
+/* QA */
+.qa-list { display: flex; flex-direction: column; gap: 10px; }
 .qa-item {
-  background: var(--surface2);
-  border-left: 3px solid var(--accent2);
-  padding: 14px 16px;
-  border-radius: 0 4px 4px 0;
-  font-size: 13px;
-  line-height: 1.6;
+  border-left: 3px solid var(--red);
+  padding: 10px 14px;
+  border-radius: 0 7px 7px 0;
+  background: var(--red-s);
+  font-size: 13px; line-height: 1.6; color: var(--ink2);
 }
+.qa-item__label { font-size: 11px; font-weight: 600; color: var(--red); margin-bottom: 4px; }
+.qa-empty { font-size: 13px; color: var(--ink3); }
 
-.qa-item__label {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: 2px;
-  color: var(--accent2);
-  margin-bottom: 6px;
-}
-
-.qa-empty {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--muted);
-}
-
-/* ── Restart button ── */
+/* 재시작 버튼 */
 .btn-restart {
-  background: transparent;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  padding: 14px 32px;
-  font-family: var(--display);
-  font-size: 20px;
-  letter-spacing: 3px;
-  cursor: pointer;
-  border-radius: 2px;
-  transition: all 0.2s;
+  background: white; color: var(--ink);
+  border: 1px solid var(--border2);
+  padding: 10px 22px; border-radius: 7px;
+  font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: var(--sans); transition: all 0.1s;
   align-self: flex-start;
 }
+.btn-restart:hover { border-color: var(--blue); color: var(--blue); }
 
-.btn-restart:hover {
-  background: var(--accent);
-  color: #000;
+/* ── 대본 토글 ── */
+.script-toggle-card {
+  background: white; border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+}
+.script-toggle-btn {
+  width: 100%; display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 20px; background: none; border: none; cursor: pointer;
+  font-family: var(--sans); transition: background 0.1s;
+}
+.script-toggle-btn:hover { background: var(--bg2); }
+.script-toggle-left { display: flex; align-items: center; gap: 10px; }
+.script-toggle-icon { font-size: 15px; }
+.script-toggle-label {
+  font-size: 12px; font-weight: 700; color: var(--ink3);
+  text-transform: uppercase; letter-spacing: 0.5px;
+}
+.script-chevron { font-size: 15px; color: var(--ink3); transition: transform 0.2s; display: inline-block; }
+.script-chevron.open { transform: rotate(180deg); }
+.script-body { border-top: 1px solid var(--border); padding: 18px 20px; }
+.script-loading, .script-empty { font-size: 13px; color: var(--ink3); text-align: center; padding: 8px 0; }
+.script-full {
+  font-size: 14px; line-height: 1.85; color: var(--ink2);
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 8px; padding: 16px 18px;
+  white-space: pre-wrap; word-break: keep-all;
+}
+
+/* ── 리포트 생성 중 ── */
+.report-generating {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  min-height: calc(100vh - 56px);
+}
+.report-generating-spinner {
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+.report-generating-title {
+  font-size: 16px; font-weight: 700; color: var(--ink);
+}
+.report-generating-sub {
+  font-size: 13px; color: var(--ink3);
 }

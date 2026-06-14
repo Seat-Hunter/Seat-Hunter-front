@@ -1,40 +1,117 @@
-/* ── styles/global.css ── */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Inter:wght@400;500;600;700&display=swap');
 
-@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg:       #0a0a0a;
-  --surface:  #111111;
-  --surface2: #1a1a1a;
-  --border:   #222222;
-  --accent:   #e8ff47;
-  --accent2:  #ff4d4d;
-  --accent3:  #47c8ff;
-  --text:     #f0f0f0;
-  --muted:    #666;
+  --bg:      #ffffff;
+  --bg2:     #f8f9fa;
+  --bg3:     #f1f3f5;
+  --ink:     #1a1d23;
+  --ink2:    #4b5563;
+  --ink3:    #9ca3af;
+  --border:  #e5e7eb;
+  --border2: #d1d5db;
+  --blue:    #2563eb;
+  --blue-h:  #1d4ed8;
+  --blue-s:  #eff6ff;
+  --green:   #059669;
+  --green-s: #ecfdf5;
+  --amber:   #d97706;
+  --amber-s: #fffbeb;
+  --red:     #dc2626;
+  --red-s:   #fef2f2;
 
-  --mono:    'DM Mono', monospace;
+  /* 기존 변수 호환 (다크 테마 컴포넌트가 참조할 수 있음) */
+  --bg:       #ffffff;
+  --surface:  #f8f9fa;
+  --surface2: #f1f3f5;
+  --border:   #e5e7eb;
+  --accent:   #2563eb;
+  --accent2:  #dc2626;
+  --accent3:  #0891b2;
+  --text:     #1a1d23;
+  --muted:    #9ca3af;
+
   --sans:    'Noto Sans KR', sans-serif;
-  --display: 'Bebas Neue', sans-serif;
+  --en:      'Inter', sans-serif;
+  --mono:    'Inter', monospace;
+  --display: 'Inter', sans-serif;
 }
 
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+html { scroll-behavior: smooth; }
 
 body {
   background: var(--bg);
-  color: var(--text);
+  color: var(--ink);
   font-family: var(--sans);
   min-height: 100vh;
   overflow-x: hidden;
+  font-size: 14px;
+  line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }
 
-button {
-  font-family: inherit;
+button { font-family: inherit; cursor: pointer; }
+
+/* ── 공통 NAV ── */
+.nav {
+  height: 56px;
+  padding: 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.97);
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  backdrop-filter: blur(8px);
+  flex-shrink: 0;
 }
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.logo-icon {
+  width: 28px; height: 28px;
+  background: var(--blue);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+}
+.logo-icon svg { width: 14px; height: 14px; }
+.logo-text { font-size: 15px; font-weight: 700; color: var(--ink); letter-spacing: -0.3px; font-family: var(--en); }
+.nav-links { display: flex; align-items: center; gap: 4px; }
+.nav-a {
+  padding: 6px 14px; border-radius: 6px;
+  font-size: 13px; font-weight: 500; color: var(--ink2);
+  cursor: pointer; border: none; background: none;
+  font-family: var(--sans); transition: all 0.1s;
+}
+.nav-a:hover { background: var(--bg2); color: var(--ink); }
+.nav-a.on { color: var(--ink); font-weight: 700; }
+.nav-right { display: flex; gap: 8px; align-items: center; }
+
+/* ── 공통 버튼 ── */
+.btn-line {
+  padding: 6px 16px; border-radius: 6px;
+  font-size: 13px; font-weight: 500;
+  color: var(--ink); border: 1px solid var(--border2); background: white;
+  cursor: pointer; font-family: var(--sans); transition: all 0.1s;
+}
+.btn-line:hover { border-color: var(--ink2); }
+
+.btn-blue {
+  padding: 6px 18px; border-radius: 6px;
+  font-size: 13px; font-weight: 700;
+  background: var(--blue); color: white; border: none;
+  cursor: pointer; font-family: var(--sans); transition: all 0.1s;
+}
+.btn-blue:hover { background: var(--blue-h); }
+.btn-blue:disabled { opacity: 0.5; cursor: not-allowed; }
+
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+@keyframes spin   { to { transform: rotate(360deg); } }
+@keyframes pulse  { 0%,100%{opacity:1;transform:scale(1);} 50%{opacity:0.5;transform:scale(0.85);} }

@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import './SetupPage.css';
 
-// ── 상수 ──────────────────────────────────────────────
+const LOGO = <span style={{ fontSize: 14 }}>🙋</span>;
+
 const TYPE_OPTIONS = [
-  { val: 'academic', label: '학술 발표' },
-  { val: 'pitch',    label: 'IR 피칭' },
-  { val: 'report',   label: '사내 보고' },
-  { val: 'interview',label: '면접' },
+  { val: 'academic',  label: '학술발표',  maxCount: 20, fixedCount: false },
+  { val: 'school',    label: '학교 발표', maxCount: 18, fixedCount: false },
+  { val: 'meeting',   label: '회의',      maxCount: 5,  fixedCount: true  },
 ];
 
 const AUDIENCE_OPTIONS = [
@@ -28,25 +28,27 @@ const INTERRUPT_OPTIONS = [
   { val: 'off', label: '끄기' },
 ];
 
-// ── 재사용 컴포넌트 ────────────────────────────────────
-function ChipGroup({ options, value, onChange }) {
+function ChipGroup({ options, value, onChange, error }) {
   return (
-    <div className="chip-group">
-      {options.map(opt => (
-        <button
-          key={opt.val}
-          className={`chip${value === opt.val ? ' chip--active' : ''}`}
-          onClick={() => onChange(opt.val)}
-          type="button"
-        >
-          {opt.label}
-        </button>
-      ))}
+    <div>
+      <div className="chip-group">
+        {options.map(opt => (
+          <button
+            key={opt.val}
+            className={`chip${value === opt.val ? ' chip--active' : ''}${error ? ' chip--error' : ''}`}
+            onClick={() => onChange(opt.val)}
+            type="button"
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+      {error && <div className="field-error">{error}</div>}
     </div>
   );
 }
 
-function RangeSlider({ id, min, max, step = 1, value, onChange }) {
+function RangeSlider({ id, min, max, step = 1, value, onChange, disabled = false }) {
   return (
     <div className="range-row">
       <input
@@ -58,109 +60,240 @@ function RangeSlider({ id, min, max, step = 1, value, onChange }) {
         step={step}
         value={value}
         onChange={e => onChange(Number(e.target.value))}
+        disabled={disabled}
+        style={{
+          opacity: disabled ? 0.4 : 1,
+          cursor: disabled ? 'not-allowed' : 'pointer',
+        }}
       />
-      <span className="range-row__val">{value}</span>
+      <span className="range-row__val">
+        {disabled ? `${value}명 (고정)` : value}
+      </span>
     </div>
   );
 }
 
-// ── SetupPage ──────────────────────────────────────────
-export default function SetupPage({ onStart }) {
-  const [type, setType]               = useState('academic');
-  const [audience, setAudience]       = useState('professor');
-  const [audienceCount, setCount]     = useState(15);
-  const [difficulty, setDifficulty]   = useState('medium');
-  const [duration, setDuration]       = useState(3);
-  const [interrupt, setInterrupt]     = useState('on');
-  const [script, setScript]           = useState('');
+export default function SetupPage({ onStart, onLogout, onHome, onHistory, preset }) {
+  const [type, setType] = useState(preset?.type ?? null);
+  const [audience, setAudience] = useState(preset?.audience ?? null);
+  const [audienceCount, setCount] = useState(
+    preset?.type
+      ? (
+          TYPE_OPTIONS.find(t => t.val === preset.type)?.fixedCount
+            ? TYPE_OPTIONS.find(t => t.val === preset.type)?.maxCount
+            : 0
+        )
+      : 0
+  );
+  const [difficulty, setDifficulty] = useState(preset?.difficulty ?? null);
+  const [duration, setDuration] = useState('');
+  const [interrupt, setInterrupt] = useState(
+    preset?.interrupt !== undefined ? (preset.interrupt ? 'on' : 'off') : null
+  );
+  const [submitted, setSubmitted] = useState(false);
+
+  const currentTypeCfg = TYPE_OPTIONS.find(t => t.val === type);
+
+  const typeError =
+    submitted && !type ? '발표 유형을 선택해주세요' : null;
+
+  const audienceError =
+    submitted && !audience ? '청자 유형을 선택해주세요' : null;
+
+  const audienceCountError =
+    submitted && !currentTypeCfg?.fixedCount && audienceCount === 0
+      ? '청중 수를 선택해주세요'
+      : null;
+
+  const difficultyError =
+    submitted && !difficulty ? '압박 강도를 선택해주세요' : null;
+
+  const durationError =
+    submitted && (!duration || Number(duration) <= 0)
+      ? '발표 시간을 입력해주세요'
+      : null;
+
+  const interruptError =
+    submitted && !interrupt ? '돌발 질문 여부를 선택해주세요' : null;
+
+  function handleTypeChange(val) {
+    const cfg = TYPE_OPTIONS.find(t => t.val === val) ?? TYPE_OPTIONS[0];
+    setType(val);
+
+    if (cfg.fixedCount) {
+      setCount(cfg.maxCount);
+    } else {
+      setCount(prev => Math.min(prev, cfg.maxCount));
+    }
+  }
 
   function handleStart() {
+    setSubmitted(true);
+
+    const countInvalid = !currentTypeCfg?.fixedCount && audienceCount === 0;
+    const durationInvalid = !duration || Number(duration) <= 0;
+
+    if (!type || !audience || countInvalid || !difficulty || durationInvalid || !interrupt) {
+      const firstMissing = !type
+        ? 'type'
+        : !audience
+        ? 'audience'
+        : countInvalid
+        ? 'audienceCount'
+        : !difficulty
+        ? 'difficulty'
+        : durationInvalid
+        ? 'duration'
+        : 'interrupt';
+
+      document.getElementById(`field-${firstMissing}`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+      return;
+    }
+
+    const cfg = TYPE_OPTIONS.find(t => t.val === type) ?? TYPE_OPTIONS[0];
+
     onStart({
       type,
       audience,
-      audienceCount,
+      audienceCount: cfg.fixedCount ? cfg.maxCount : audienceCount,
       difficulty,
-      duration,
+      duration: Number(duration),
       interrupt: interrupt === 'on',
-      script,
     });
   }
 
   return (
     <div className="setup-page">
-      {/* 로고 */}
-      <div className="logo">
-        PressurePoint
-        <span className="logo__sub">// 스피치 압박 트레이너</span>
-      </div>
-
-      {/* 설정 그리드 */}
-      <div className="setup-grid">
-
-        {/* 발표 유형 */}
-        <div className="field">
-          <label className="field__label">발표 유형</label>
-          <ChipGroup options={TYPE_OPTIONS} value={type} onChange={setType} />
+      <nav className="nav">
+        <div className="nav-logo" onClick={onHome} style={{ cursor: 'pointer' }}>
+          <div className="logo-icon">{LOGO}</div>
+          <span className="logo-text">SpeechLab</span>
         </div>
 
-        {/* 청자 유형 */}
-        <div className="field">
-          <label className="field__label">청자 유형</label>
-          <ChipGroup options={AUDIENCE_OPTIONS} value={audience} onChange={setAudience} />
+        <div className="nav-links">
+          <button className="nav-a" onClick={onHome}>홈</button>
+          <button className="nav-a on">발표 설정</button>
         </div>
 
-        {/* 청중 수 */}
-        <div className="field">
-          <label className="field__label">청중 수</label>
-          <RangeSlider
-            id="audienceCount"
-            min={5} max={50} step={5}
-            value={audienceCount}
-            onChange={setCount}
+        <div className="nav-right">
+          {onHistory && <button className="btn-line" onClick={onHistory}>히스토리</button>}
+          {onLogout && <button className="btn-line" onClick={onLogout}>로그아웃</button>}
+        </div>
+      </nav>
+
+      <div className="setup-wrap">
+        <div className="logo-row">
+          <div>
+            <div className="logo">발표 설정</div>
+            <span className="logo__sub">
+              환경과 조건을 설정하면 맞춤 AI 청중이 생성됩니다
+            </span>
+          </div>
+        </div>
+
+        <div className="setup-section" id="field-type">
+          <span className="ss-label">발표 유형</span>
+          <ChipGroup
+            options={TYPE_OPTIONS}
+            value={type}
+            onChange={handleTypeChange}
+            error={typeError}
           />
         </div>
 
-        {/* 압박 강도 */}
-        <div className="field">
-          <label className="field__label">압박 강도</label>
-          <ChipGroup options={DIFF_OPTIONS} value={difficulty} onChange={setDifficulty} />
+        <div className="setup-section" id="field-audience">
+          <span className="ss-label">청자 유형</span>
+          <ChipGroup
+            options={AUDIENCE_OPTIONS}
+            value={audience}
+            onChange={v => setAudience(v)}
+            error={audienceError}
+          />
         </div>
 
-        {/* 발표 시간 */}
-        <div className="field">
-          <label className="field__label">발표 시간 (분)</label>
-          <RangeSlider
-            id="duration"
-            min={1} max={10}
+        <div className="setup-section" id="field-audienceCount">
+          <span className="ss-label">청중 수</span>
+          <div className="range-block">
+            <div className="range-header">
+              <span className="range-title">
+                {!type
+                  ? '발표 유형을 먼저 선택해주세요'
+                  : currentTypeCfg?.fixedCount
+                  ? '고정 인원'
+                  : '청중 인원 선택'}
+              </span>
+              <span className="range-value">
+                {type ? (audienceCount === 0 ? '—' : `${audienceCount}명`) : '—'}
+              </span>
+            </div>
+
+            <RangeSlider
+              id="audienceCount"
+              min={0}
+              max={currentTypeCfg?.maxCount ?? 20}
+              value={audienceCount}
+              onChange={setCount}
+              disabled={!type || currentTypeCfg?.fixedCount}
+            />
+          </div>
+          {audienceCountError && <div className="field-error">{audienceCountError}</div>}
+        </div>
+
+        <div className="setup-section" id="field-difficulty">
+          <span className="ss-label">압박 강도</span>
+          <ChipGroup
+            options={DIFF_OPTIONS}
+            value={difficulty}
+            onChange={v => setDifficulty(v)}
+            error={difficultyError}
+          />
+        </div>
+
+        <div className="setup-section" id="field-duration">
+          <span className="ss-label">발표 시간 (분)</span>
+          <input
+            type="number"
+            className="setup-input"
             value={duration}
-            onChange={setDuration}
+            min="1"
+            placeholder="예: 5"
+            onChange={e => setDuration(e.target.value)}
+          />
+          {durationError && <div className="field-error">{durationError}</div>}
+        </div>
+
+        <div className="setup-section" id="field-interrupt">
+          <span className="ss-label">돌발 질문</span>
+          <ChipGroup
+            options={INTERRUPT_OPTIONS}
+            value={interrupt}
+            onChange={v => setInterrupt(v)}
+            error={interruptError}
           />
         </div>
 
-        {/* 돌발 질문 */}
-        <div className="field">
-          <label className="field__label">돌발 질문</label>
-          <ChipGroup options={INTERRUPT_OPTIONS} value={interrupt} onChange={setInterrupt} />
-        </div>
+        <div className="setup-footer">
+          {onHome && (
+            <button
+              className="btn-line"
+              onClick={onHome}
+              style={{ marginRight: 'auto' }}
+            >
+              ← 홈으로
+            </button>
+          )}
 
-        {/* 스크립트 */}
-        <div className="field field--full">
-          <label className="field__label">발표 스크립트 (선택)</label>
-          <textarea
-            className="setup-textarea"
-            value={script}
-            onChange={e => setScript(e.target.value)}
-            placeholder={
-              '발표 내용을 붙여넣으세요. 없으면 자유 발표로 진행됩니다.\n\n'
-            }
-          />
+          <button className="btn-primary" onClick={handleStart}>
+            <svg width="11" height="11" fill="white" viewBox="0 0 24 24">
+              <path d="M5 3l14 9-14 9V3z" />
+            </svg>
+            발표 시작
+          </button>
         </div>
       </div>
-
-      {/* 시작 버튼 */}
-      <button className="btn-primary" onClick={handleStart}>
-        발표 시작
-      </button>
     </div>
   );
 }

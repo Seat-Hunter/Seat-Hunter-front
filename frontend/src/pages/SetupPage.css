@@ -1,61 +1,46 @@
-/* ── SetupPage.css ── */
-
 .setup-page {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  padding: 60px 40px;
-  max-width: 860px;
+  background: var(--bg);
+}
+
+.setup-wrap {
+  max-width: 680px;
   margin: 0 auto;
+  padding: 48px 40px 80px;
   width: 100%;
-  gap: 48px;
 }
 
-/* ── Logo ── */
-.logo {
-  font-family: var(--display);
-  font-size: 52px;
-  letter-spacing: 4px;
-  color: var(--accent);
-  line-height: 1;
+.page-h {
+  font-size: 26px;
+  font-weight: 900;
+  margin-bottom: 6px;
+  letter-spacing: -0.4px;
+  color: var(--ink);
 }
 
-.logo__sub {
-  color: var(--muted);
-  font-size: 14px;
-  font-family: var(--mono);
-  letter-spacing: 2px;
+.page-sub {
+  font-size: 13px;
+  color: var(--ink2);
+  margin-bottom: 36px;
+  word-break: keep-all;
+  line-height: 1.6;
+}
+
+.setup-section {
+  margin-bottom: 24px;
+}
+
+.ss-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 10px;
   display: block;
-  margin-top: 6px;
 }
 
-/* ── Grid ── */
-.setup-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-}
-
-/* ── Field ── */
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.field--full {
-  grid-column: 1 / -1;
-}
-
-.field__label {
-  font-family: var(--mono);
-  font-size: 11px;
-  letter-spacing: 2px;
-  color: var(--muted);
-  text-transform: uppercase;
-}
-
-/* ── Chip Group ── */
+/* 칩 */
 .chip-group {
   display: flex;
   gap: 8px;
@@ -63,30 +48,55 @@
 }
 
 .chip {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--muted);
-  padding: 8px 16px;
-  border-radius: 2px;
+  padding: 7px 15px;
+  border-radius: 7px;
+  border: 1px solid var(--border2);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink2);
   cursor: pointer;
-  font-family: var(--mono);
-  font-size: 12px;
-  transition: all 0.15s;
+  transition: all 0.1s;
+  background: white;
   user-select: none;
+  font-family: var(--sans);
 }
 
 .chip:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: var(--blue);
+  color: var(--blue);
 }
 
 .chip--active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #000;
+  background: var(--blue);
+  color: white;
+  border-color: var(--blue);
+  font-weight: 600;
 }
 
-/* ── Range Slider ── */
+/* 레인지 */
+.range-block {
+  padding: 2px 0;
+}
+
+.range-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.range-title {
+  font-size: 13px;
+  color: var(--ink2);
+}
+
+.range-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--blue);
+  font-family: var(--en);
+}
+
 .range-row {
   display: flex;
   align-items: center;
@@ -95,63 +105,151 @@
 
 .range-row__input {
   flex: 1;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 12px 16px;
-  accent-color: var(--accent);
+  -webkit-appearance: none;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  outline: none;
+  border: none;
+  padding: 0;
+  accent-color: var(--blue);
+}
+
+.range-row__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--blue);
+  border: 3px solid white;
+  box-shadow: 0 0 0 1.5px var(--border2);
   cursor: pointer;
 }
 
 .range-row__val {
-  font-family: var(--mono);
+  font-family: var(--en);
   font-size: 13px;
-  color: var(--accent);
-  min-width: 32px;
+  color: var(--blue);
+  min-width: 60px;
   text-align: right;
+  font-weight: 600;
 }
 
-/* ── Textarea ── */
-.setup-textarea {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: 14px;
-  padding: 12px 16px;
-  border-radius: 4px;
-  outline: none;
-  transition: border-color 0.2s;
+/* 텍스트 입력 */
+.setup-input {
   width: 100%;
-  resize: vertical;
-  min-height: 120px;
-  line-height: 1.6;
+  padding: 12px 14px;
+  border-radius: 7px;
+  border: 1px solid var(--border2);
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink);
+  background: white;
+  outline: none;
+  transition: border-color 0.1s;
+  line-height: 1.65;
 }
 
-.setup-textarea:focus {
-  border-color: var(--accent);
+.setup-input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.08);
 }
 
-/* ── Start Button ── */
+.setup-input::placeholder {
+  color: var(--ink3);
+}
+
+/* 하단 버튼 영역 */
+.setup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-top: 36px;
+  padding-top: 24px;
+  gap: 10px;
+}
+
 .btn-primary {
-  background: var(--accent);
-  color: #000;
+  padding: 11px 28px;
+  border-radius: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0;
+  background: var(--blue);
+  color: white;
   border: none;
-  padding: 18px 40px;
-  font-family: var(--display);
-  font-size: 22px;
-  letter-spacing: 3px;
   cursor: pointer;
-  border-radius: 2px;
-  transition: transform 0.1s, opacity 0.2s;
-  align-self: flex-start;
+  font-family: var(--sans);
+  transition: all 0.1s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .btn-primary:hover {
-  opacity: 0.85;
-  transform: translateY(-1px);
+  background: var(--blue-h);
 }
 
-.btn-primary:active {
-  transform: translateY(0);
+.logo-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 36px;
+}
+
+.logo {
+  font-size: 22px;
+  font-weight: 900;
+  color: var(--ink);
+  letter-spacing: -0.5px;
+  font-family: var(--en);
+}
+
+.logo__sub {
+  font-size: 12px;
+  color: var(--ink3);
+  font-weight: 400;
+  display: block;
+  margin-top: 2px;
+}
+
+.btn-logout {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink2);
+  border: 1px solid var(--border2);
+  background: white;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: all 0.1s;
+}
+
+.btn-logout:hover {
+  color: var(--red);
+  border-color: var(--red);
+}
+
+.setup-error {
+  background: var(--red-s);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  color: var(--red);
+  border-radius: 7px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+/* 유효성 검사 */
+.chip.chip--error {
+  border-color: var(--red) !important;
+  color: var(--red);
+}
+
+.field-error {
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--red);
+  font-weight: 500;
 }
