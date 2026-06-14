@@ -171,7 +171,7 @@ export default function ReportPage({ simState, onRestart, onHome, onHistory }) {
         {/* 지표 */}
         <div className="metrics-row">
           <div className="metric-card">
-            <div className="metric-num" style={{ color: 'var(--blue)' }}>{displayAvgWpm}</div>
+            <div className="metric-num" style={{ color: 'var(--blue)' }}>{Math.round(displayAvgWpm)}</div>
             <div className="metric-label">평균 WPM</div>
           </div>
           <div className="metric-card">

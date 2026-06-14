@@ -110,6 +110,8 @@ export default function SimPage({ simState, onStop, onCancel }) {
   const startTimeRef         = useRef(Date.now());
   const transcriptRef        = useRef('');
   const wordCountRef         = useRef(0);
+  const liveWordCountRef     = useRef(0); // wordCountRef + 현재 interim 단어수 (실시간 WPM용)
+  const wordCountHistoryRef  = useRef([]); // 최근 단어수 추이 ({ts, count}) — 실시간 WPM 슬라이딩 윈도우용
   const fillerCountRef       = useRef(0);
   const wpmHistoryRef        = useRef([]);
   const interruptLogRef      = useRef([]);
@@ -197,6 +199,7 @@ export default function SimPage({ simState, onStop, onCancel }) {
 
     const words = text.trim().split(/\s+/);
     wordCountRef.current += words.length;
+    liveWordCountRef.current = wordCountRef.current;
 
     words.forEach(w => {
       const clean = w.replace(/[^가-힣a-z]/gi, '');
@@ -216,7 +219,6 @@ export default function SimPage({ simState, onStop, onCancel }) {
     const elapsedMin = (Date.now() - startTimeRef.current) / 60000;
     const currentWpm = elapsedMin > 0 ? Math.round(wordCountRef.current / elapsedMin) : 0;
     wpmHistoryRef.current.push(currentWpm);
-    setWpm(currentWpm);
 
     if (!isDemoRef.current && (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)) {
       if (currentWpm > 80 && currentWpm < 160 && fillerCountRef.current < 5) {
@@ -375,11 +377,10 @@ export default function SimPage({ simState, onStop, onCancel }) {
 
             case 'final_transcript':
               // 백엔드 확정 자막 — 자막 표시는 Web Speech final이 담당
-              // WPM/필러는 live_metrics로 수신
+              // WPM은 프론트에서 직접 계산, 필러는 live_metrics로 수신
               break;
 
             case 'live_metrics':
-              setWpm(msg.wpm ?? 0);
               setFillerCount(msg.filler_count ?? 0);
               break;
 
@@ -533,8 +534,25 @@ export default function SimPage({ simState, onStop, onCancel }) {
     startTimeRef.current = Date.now();
 
     timerIntervalRef.current = setInterval(() => {
-      const elapsedSec = Math.floor((Date.now() - startTimeRef.current) / 1000);
+      const now = Date.now();
+      const elapsedSec = Math.floor((now - startTimeRef.current) / 1000);
       setElapsed(elapsedSec);
+
+      // 최근 10초 슬라이딩 윈도우 기준 실시간 WPM (말을 멈추면 자연스럽게 0으로 감소)
+      const WPM_WINDOW_MS = 10000;
+      wordCountHistoryRef.current.push({ ts: now, count: liveWordCountRef.current });
+      while (
+        wordCountHistoryRef.current.length > 1 &&
+        wordCountHistoryRef.current[0].ts < now - WPM_WINDOW_MS
+      ) {
+        wordCountHistoryRef.current.shift();
+      }
+      const oldest = wordCountHistoryRef.current[0];
+      const windowMin = (now - oldest.ts) / 60000;
+      const wordDelta = Math.max(0, liveWordCountRef.current - oldest.count); // interim 정정으로 인한 음수 방지
+      const liveWpm = windowMin > 0 ? Math.round(wordDelta / windowMin) : 0;
+      setWpm(liveWpm);
+
       if (elapsedSec >= totalSecRef.current) {
         stopSimRef.current(true);
         return;
@@ -563,14 +581,12 @@ export default function SimPage({ simState, onStop, onCancel }) {
           setInterimText('');
           processNewText(final);
         } else if (interim) {
-          // interim → 어두운색 임시 자막 + 실시간 WPM/필러 로컬 계산
+          // interim → 어두운색 임시 자막 표시 (WPM은 timerIntervalRef의 1초 틱에서 계산)
           setInterimText(interim);
 
-          // 실시간 WPM 계산 (interim 기준)
-          const allText = transcriptRef.current + interim;
-          const totalWords = allText.trim().split(/\s+/).filter(Boolean).length;
-          const elapsedMin = (Date.now() - startTimeRef.current) / 60000;
-          if (elapsedMin > 0) setWpm(Math.round(totalWords / elapsedMin));
+          // interim 단어수도 실시간 WPM 계산에 반영 (final 대기 중에도 계속 업데이트되도록)
+          const interimWordCount = interim.trim().split(/\s+/).filter(Boolean).length;
+          liveWordCountRef.current = wordCountRef.current + interimWordCount;
 
           // 실시간 필러 계산 (interim 기준)
           const interimWords = interim.trim().split(/\s+/);
