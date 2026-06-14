@@ -103,6 +103,8 @@ export default function SimPage({ simState, onStop, onCancel }) {
 
   // answerMicActive → ref 동기화
   useEffect(() => { answerMicActiveRef.current = answerMicActive; }, [answerMicActive]);
+  // sessionPhase → ref 동기화 (실시간 피드백 판단용)
+  useEffect(() => { sessionPhaseRef.current = sessionPhase; }, [sessionPhase]);
   const [liveFeedback, setLiveFeedback]       = useState(null);
   const [demoCurrentText, setDemoCurrentText] = useState('');
 
@@ -136,6 +138,10 @@ export default function SimPage({ simState, onStop, onCancel }) {
   const countdownTimerRef    = useRef(null);
   const mediaRecorderRef     = useRef(null);
   const micStreamRef         = useRef(null);
+  const sessionPhaseRef      = useRef('presenting'); // 실시간 피드백(속도/필러/침묵) 판단용
+  const lastSpeechAtRef      = useRef(Date.now());    // 마지막 발화 시각 (침묵 감지용)
+  const silenceFeedbackFiredRef = useRef(false);      // 현재 침묵 구간에서 안내를 이미 보냈는지
+  const prevRecentWpmRef     = useRef(0);             // stress score 계산용 직전 구간 WPM
 
   // ── 베이스 mood 적용 (전체 청중)
   const applyMoodRef = useRef(null);
@@ -180,6 +186,12 @@ export default function SimPage({ simState, onStop, onCancel }) {
   onStopRef.current      = onStop;
   interruptOnRef.current = interruptOn;
 
+  // ── 실시간 피드백(속도/필러/긴장/침묵) 안내 — 5초간 표시 후 자동 숨김
+  function showLiveFeedback(message) {
+    setLiveFeedback(message);
+    setTimeout(() => setLiveFeedback(null), 5000);
+  }
+
   // ── 텍스트 처리
   function processNewText(text) {
     if (isTtsPlayingRef.current) return; // TTS 재생 중 차단
@@ -197,13 +209,21 @@ export default function SimPage({ simState, onStop, onCancel }) {
       }));
     }
 
+    const now = Date.now();
+    lastSpeechAtRef.current = now;
+    silenceFeedbackFiredRef.current = false;
+
     const words = text.trim().split(/\s+/);
     wordCountRef.current += words.length;
     liveWordCountRef.current = wordCountRef.current;
 
+    let segmentFillerCount = 0;
     words.forEach(w => {
       const clean = w.replace(/[^가-힣a-z]/gi, '');
-      if (FILLERS.includes(clean)) fillerCountRef.current++;
+      if (FILLERS.includes(clean)) {
+        fillerCountRef.current++;
+        segmentFillerCount++;
+      }
     });
 
     if (isDemoRef.current) {
@@ -216,9 +236,41 @@ export default function SimPage({ simState, onStop, onCancel }) {
     }
     setFillerCount(fillerCountRef.current);
 
-    const elapsedMin = (Date.now() - startTimeRef.current) / 60000;
+    const elapsedMin = (now - startTimeRef.current) / 60000;
     const currentWpm = elapsedMin > 0 ? Math.round(wordCountRef.current / elapsedMin) : 0;
     wpmHistoryRef.current.push(currentWpm);
+
+    // 최근 10초 윈도우 기준 "현재" WPM (말속도/긴장 피드백 판단용 — 백엔드 recent_wpm과 동일한 개념)
+    const WPM_WINDOW_MS = 10000;
+    let oldest = null;
+    for (const h of wordCountHistoryRef.current) {
+      if (h.ts >= now - WPM_WINDOW_MS) { oldest = h; break; }
+    }
+    let recentWpmNow = 0;
+    if (oldest) {
+      const windowMin = (now - oldest.ts) / 60000;
+      const wordDelta = Math.max(0, liveWordCountRef.current - oldest.count);
+      recentWpmNow = windowMin > 0 ? Math.round(wordDelta / windowMin) : 0;
+    }
+
+    if (sessionPhaseRef.current === 'presenting') {
+      let feedbackMsg = null;
+      if (recentWpmNow > 170) {
+        feedbackMsg = '말속도가 너무 빠릅니다. 천천히 말씀해보세요.';
+      } else if (recentWpmNow > 0 && recentWpmNow < 60) {
+        feedbackMsg = '말속도가 너무 느립니다. 조금 더 빠르게 말씀해보세요.';
+      } else if (segmentFillerCount >= 3) {
+        feedbackMsg = '필러 단어가 늘고 있습니다. 잠깐 멈추고 정리 후 말씀해보세요.';
+      } else {
+        const wpmChange = prevRecentWpmRef.current === 0 ? 0 : Math.abs(recentWpmNow - prevRecentWpmRef.current);
+        const stressScore = Math.min(1, wpmChange * 0.01 + segmentFillerCount * 0.2);
+        if (stressScore > 0.85) {
+          feedbackMsg = '긴장이 감지됩니다. 천천히 호흡하고 말씀해보세요.';
+        }
+      }
+      if (feedbackMsg) showLiveFeedback(feedbackMsg);
+    }
+    prevRecentWpmRef.current = recentWpmNow;
 
     if (!isDemoRef.current && (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN)) {
       if (currentWpm > 80 && currentWpm < 160 && fillerCountRef.current < 5) {
@@ -382,11 +434,6 @@ export default function SimPage({ simState, onStop, onCancel }) {
 
             case 'live_metrics':
               setFillerCount(msg.filler_count ?? 0);
-              break;
-
-            case 'live_feedback':
-              setLiveFeedback(msg.message);
-              setTimeout(() => setLiveFeedback(null), 5000);
               break;
 
             case 'audience_reaction': {
@@ -553,6 +600,17 @@ export default function SimPage({ simState, onStop, onCancel }) {
       const liveWpm = windowMin > 0 ? Math.round(wordDelta / windowMin) : 0;
       setWpm(liveWpm);
 
+      // 발표 중 일정 시간(5초) 발화가 없으면 침묵 안내를 한 번만 표시
+      const SILENCE_FEEDBACK_MS = 5000;
+      if (
+        sessionPhaseRef.current === 'presenting' &&
+        !silenceFeedbackFiredRef.current &&
+        now - lastSpeechAtRef.current >= SILENCE_FEEDBACK_MS
+      ) {
+        silenceFeedbackFiredRef.current = true;
+        showLiveFeedback('침묵이 길어지고 있습니다. 다음 내용을 이어가보세요.');
+      }
+
       if (elapsedSec >= totalSecRef.current) {
         stopSimRef.current(true);
         return;
@@ -583,6 +641,10 @@ export default function SimPage({ simState, onStop, onCancel }) {
         } else if (interim) {
           // interim → 어두운색 임시 자막 표시 (WPM은 timerIntervalRef의 1초 틱에서 계산)
           setInterimText(interim);
+
+          // 발화가 들어왔으므로 침묵 감지 타이머 초기화
+          lastSpeechAtRef.current = Date.now();
+          silenceFeedbackFiredRef.current = false;
 
           // interim 단어수도 실시간 WPM 계산에 반영 (final 대기 중에도 계속 업데이트되도록)
           const interimWordCount = interim.trim().split(/\s+/).filter(Boolean).length;
